@@ -1,18 +1,22 @@
 /*
  * init.c
  *
- *  Created on: Aug 20, 2024
- *      Author: Ocanath Robotman
+ *  Created on: Aug 21, 2024
+ *      Author: ocanath
  */
+
+
 #include "init.h"
+
+FDCAN_HandleTypeDef hfdcan1;
 
 SPI_HandleTypeDef hspi1;
 
 TIM_HandleTypeDef htim1;
 TIM_HandleTypeDef htim2;
 
-UART_HandleTypeDef huart1;
 UART_HandleTypeDef huart2;
+
 
 /**
  * @brief System Clock Configuration
@@ -60,6 +64,49 @@ void SystemClock_Config(void)
 }
 
 /**
+ * @brief FDCAN1 Initialization Function
+ * @param None
+ * @retval None
+ */
+void MX_FDCAN1_Init(void)
+{
+
+	/* USER CODE BEGIN FDCAN1_Init 0 */
+
+	/* USER CODE END FDCAN1_Init 0 */
+
+	/* USER CODE BEGIN FDCAN1_Init 1 */
+
+	/* USER CODE END FDCAN1_Init 1 */
+	hfdcan1.Instance = FDCAN1;
+	hfdcan1.Init.ClockDivider = FDCAN_CLOCK_DIV1;
+	hfdcan1.Init.FrameFormat = FDCAN_FRAME_CLASSIC;
+	hfdcan1.Init.Mode = FDCAN_MODE_NORMAL;
+	hfdcan1.Init.AutoRetransmission = DISABLE;
+	hfdcan1.Init.TransmitPause = DISABLE;
+	hfdcan1.Init.ProtocolException = DISABLE;
+	hfdcan1.Init.NominalPrescaler = 16;
+	hfdcan1.Init.NominalSyncJumpWidth = 1;
+	hfdcan1.Init.NominalTimeSeg1 = 2;
+	hfdcan1.Init.NominalTimeSeg2 = 2;
+	hfdcan1.Init.DataPrescaler = 1;
+	hfdcan1.Init.DataSyncJumpWidth = 1;
+	hfdcan1.Init.DataTimeSeg1 = 1;
+	hfdcan1.Init.DataTimeSeg2 = 1;
+	hfdcan1.Init.StdFiltersNbr = 0;
+	hfdcan1.Init.ExtFiltersNbr = 0;
+	hfdcan1.Init.TxFifoQueueMode = FDCAN_TX_FIFO_OPERATION;
+	if (HAL_FDCAN_Init(&hfdcan1) != HAL_OK)
+	{
+		Error_Handler();
+	}
+	/* USER CODE BEGIN FDCAN1_Init 2 */
+
+	/* USER CODE END FDCAN1_Init 2 */
+
+}
+
+/**
  * @brief SPI1 Initialization Function
  * @param None
  * @retval None
@@ -81,7 +128,7 @@ void MX_SPI1_Init(void)
 	hspi1.Init.DataSize = SPI_DATASIZE_4BIT;
 	hspi1.Init.CLKPolarity = SPI_POLARITY_LOW;
 	hspi1.Init.CLKPhase = SPI_PHASE_1EDGE;
-	hspi1.Init.NSS = SPI_NSS_HARD_INPUT;
+	hspi1.Init.NSS = SPI_NSS_SOFT;
 	hspi1.Init.FirstBit = SPI_FIRSTBIT_MSB;
 	hspi1.Init.TIMode = SPI_TIMODE_DISABLE;
 	hspi1.Init.CRCCalculation = SPI_CRCCALCULATION_DISABLE;
@@ -214,54 +261,6 @@ void MX_TIM2_Init(void)
 	/* USER CODE BEGIN TIM2_Init 2 */
 
 	/* USER CODE END TIM2_Init 2 */
-
-}
-
-/**
- * @brief USART1 Initialization Function
- * @param None
- * @retval None
- */
-void MX_USART1_UART_Init(void)
-{
-
-	/* USER CODE BEGIN USART1_Init 0 */
-
-	/* USER CODE END USART1_Init 0 */
-
-	/* USER CODE BEGIN USART1_Init 1 */
-
-	/* USER CODE END USART1_Init 1 */
-	huart1.Instance = USART1;
-	huart1.Init.BaudRate = 115200;
-	huart1.Init.WordLength = UART_WORDLENGTH_8B;
-	huart1.Init.StopBits = UART_STOPBITS_1;
-	huart1.Init.Parity = UART_PARITY_NONE;
-	huart1.Init.Mode = UART_MODE_TX_RX;
-	huart1.Init.HwFlowCtl = UART_HWCONTROL_NONE;
-	huart1.Init.OverSampling = UART_OVERSAMPLING_16;
-	huart1.Init.OneBitSampling = UART_ONE_BIT_SAMPLE_DISABLE;
-	huart1.Init.ClockPrescaler = UART_PRESCALER_DIV1;
-	huart1.AdvancedInit.AdvFeatureInit = UART_ADVFEATURE_NO_INIT;
-	if (HAL_UART_Init(&huart1) != HAL_OK)
-	{
-		Error_Handler();
-	}
-	if (HAL_UARTEx_SetTxFifoThreshold(&huart1, UART_TXFIFO_THRESHOLD_1_8) != HAL_OK)
-	{
-		Error_Handler();
-	}
-	if (HAL_UARTEx_SetRxFifoThreshold(&huart1, UART_RXFIFO_THRESHOLD_1_8) != HAL_OK)
-	{
-		Error_Handler();
-	}
-	if (HAL_UARTEx_DisableFifoMode(&huart1) != HAL_OK)
-	{
-		Error_Handler();
-	}
-	/* USER CODE BEGIN USART1_Init 2 */
-
-	/* USER CODE END USART1_Init 2 */
 
 }
 
