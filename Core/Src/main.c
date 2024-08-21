@@ -1,30 +1,44 @@
 #include "init.h"
 #include "m_uart.h"
 #include "PPP.h"
+#include "checksum.h"
+
+typedef union {
+	int8_t d8[sizeof(uint32_t)/sizeof(int8_t)];
+	uint8_t u8[sizeof(uint32_t)/sizeof(uint8_t)];
+	uint16_t u16[sizeof(uint32_t)/sizeof(uint16_t)];
+	int16_t i16[sizeof(uint32_t)/sizeof(int16_t)];
+	uint32_t u32;
+	int32_t i32;
+	float f32;	//sizeof(float) == sizeof(uint32_t) on this system
+}u32_fmt_t;
 
 void m_uart2_rx_cplt_callback(uart_it_t * h)
 {
 
 }
 
+static int16_t can_tx_id = 0;
 static uint8_t can_tx_buf[8] = {0};
 static uint8_t trigger_can_tx = 0;
 
 void ppp_rx_cplt_callback(uart_it_t * h)
 {
-	if(h->ppp_unstuffed_size != 0)
+	if(h->ppp_unstuffed_size == 12)	//2 address, 8 payload, 2 checksum
 	{
 		const uint8_t * pbu8 = (uint8_t*)(&m_huart2.ppp_unstuff_buf[0]);	//alias for this so it's easier to type
-		int i = 0;
-		for(i = 0; i < h->ppp_unstuffed_size && i < sizeof(can_tx_buf); i++)
+		const uint16_t * pbu16 = (uint16_t*)(&m_huart2.ppp_unstuff_buf[0]);	//alias for this so it's easier to type
+		int i16_size = h->ppp_unstuffed_size / sizeof(int16_t);
+		uint16_t checksum = fletchers_checksum16((uint16_t*)pbu16, i16_size - 1);
+		if(checksum == pbu16[i16_size-1])
 		{
-			can_tx_buf[i] = pbu8[i];
+			can_tx_id = pbu16[0];
+			for(int i = 0; i < sizeof(can_tx_buf); i++)
+			{
+				can_tx_buf[i] = pbu8[i+sizeof(can_tx_id)];
+			}
+			trigger_can_tx = 1;
 		}
-		for(; i < sizeof(can_tx_buf); i++)
-		{
-			can_tx_buf[i] = 0;
-		}
-		trigger_can_tx = 1;
 	}
 }
 
