@@ -91,7 +91,6 @@ void loop()
     {
       int len = udp.read(udp_pkt_buf,255);
       Serial2.write(udp_pkt_buf,len);
-      Serial.write(udp_pkt_buf,len);
       for(int i = 0; i < len; i++)
         udp_pkt_buf[i] = 0;
     }

@@ -1,5 +1,6 @@
 #include "init.h"
 #include "m_uart.h"
+#include "PPP.h"
 
 void m_uart2_rx_cplt_callback(uart_it_t * h)
 {
@@ -8,6 +9,7 @@ void m_uart2_rx_cplt_callback(uart_it_t * h)
 
 static uint8_t can_tx_buf[8] = {0};
 static uint8_t trigger_can_tx = 0;
+
 void ppp_rx_cplt_callback(uart_it_t * h)
 {
 	if(h->ppp_unstuffed_size != 0)
@@ -45,6 +47,8 @@ int main(void)
 
 		if(trigger_can_tx)
 		{
+			int len = PPP_stuff(can_tx_buf, sizeof(can_tx_buf), gl_ppp_stuff_buf, sizeof(gl_ppp_stuff_buf));
+			m_uart_tx_start(&m_huart2, gl_ppp_stuff_buf, len);
 			trigger_can_tx = 0;
 
 		}
