@@ -61,17 +61,18 @@ int main(void)
 
 		if(trigger_can_tx)
 		{
+			led_ts = tick;	//led stays on for 10ms if there is can tx activity (or rx activity?)
+			HAL_GPIO_WritePin(LED_GPIO_Port, LED_Pin, 1);
+
 			int len = PPP_stuff(can_tx_buf, sizeof(can_tx_buf), gl_ppp_stuff_buf, sizeof(gl_ppp_stuff_buf));
 			m_uart_tx_start(&m_huart2, gl_ppp_stuff_buf, len);
 			trigger_can_tx = 0;
-
 		}
 
 
-		if(tick - led_ts > 500)
+		if(tick - led_ts > 10)
 		{
-			led_ts = tick;
-			HAL_GPIO_TogglePin(LED_GPIO_Port, LED_Pin);
+			HAL_GPIO_WritePin(LED_GPIO_Port, LED_Pin, 0);
 		}
 	}
 }

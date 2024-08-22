@@ -34,7 +34,7 @@ void setup() {
   init_prefs(&preferences, &gl_prefs);
 
   Serial.begin(2000000);  //this can stay 2mbps. WHICH IS CRAZY omg
-  Serial2.begin(460800, SERIAL_8N1, 16, 17);  //once you have a working system, try pushing this way higher (2MBPS is supported by ESP32!!)
+  Serial2.begin(2000000, SERIAL_8N1, 16, 17);  //once you have a working system, try pushing this way higher (2MBPS is supported by ESP32!!)
 
   int connected = 0;
   Serial.printf("\r\n\r\n Trying \'%s\' \'%s\'\r\n",gl_prefs.ssid, gl_prefs.password);
