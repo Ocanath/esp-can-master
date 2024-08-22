@@ -3,10 +3,10 @@
 #include "parse_console.h"
 #include "nvs.h"
 #include "PPP.h"
-#include <WiFi.h>
-#include <ESPmDNS.h>
-#include <WiFiUdp.h>
-#include <ArduinoOTA.h>
+// #include <WiFi.h>
+// #include <ESPmDNS.h>
+// #include <WiFiUdp.h>
+// #include <ArduinoOTA.h>
 
 
 #define NRST_PIN 2
