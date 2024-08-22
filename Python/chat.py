@@ -39,29 +39,40 @@ if __name__ == "__main__":
 
 	ts = time.time()
 	
-	
-	while(1):
-		cur_time = time.time()
-		if(cur_time - ts > 0.5):
-			ts = cur_time
-
-			can_payload = bytearray(5)
-			can_payload[0] = ord('h')
-			can_payload[1] = ord('e')
-			can_payload[2] = ord('l')
-			can_payload[3] = ord('l')
-			can_payload[4] = ord('o')
-
-			payload = create_can_payload(0, len(can_payload), 1, can_payload)
-			pld_stuffed = PPP_stuff(payload)
-			# print(pld_stuffed)
-
-			server_socket.sendto(pld_stuffed, target_addr)
+	kill = False
+	iter = 0
+	while(kill == False):
 
 		try:
-			pkt,source_addr = server_socket.recvfrom(512)
-			print("From: "+source_addr[0]+":"+str(source_addr[1])+": ["+str(pkt) + "],  " + str(len(pkt)) + " bytes" )
-		except BlockingIOError:
-			pass
+			cur_time = time.time()
+			if(cur_time - ts > 0.001):
+				ts = cur_time
+				
+				iter = iter + 1
+				if(iter > 9999):
+					iter = 0
+				str_iter = str(iter)
+				can_payload = bytearray(str_iter,  encoding='utf8')
+
+				# can_payload = bytearray(5)
+				# can_payload[0] = ord('h')
+				# can_payload[1] = ord('e')
+				# can_payload[2] = ord('l')
+				# can_payload[3] = ord('l')
+				# can_payload[4] = ord('o')
+
+				payload = create_can_payload(0, len(can_payload), 1, can_payload)
+				pld_stuffed = PPP_stuff(payload)
+				# print(pld_stuffed)
+
+				server_socket.sendto(pld_stuffed, target_addr)
+
+			try:
+				pkt,source_addr = server_socket.recvfrom(512)
+				print("From: "+source_addr[0]+":"+str(source_addr[1])+": ["+str(pkt) + "],  " + str(len(pkt)) + " bytes" )
+			except BlockingIOError:
+				pass
+		except KeyboardInterrupt:
+			kill=True
 
 
