@@ -77,7 +77,7 @@ int main(void)
 			led_ts = tick;	//led stays on for 10ms if there is can tx activity (or rx activity?)
 			HAL_GPIO_WritePin(LED_GPIO_Port, LED_Pin, 1);
 
-			can_tx_header.DataLength = gl_crq.len;
+			can_tx_header.DataLength = (gl_crq.len & 0xF) << 16;	//note: len value above 8 will index into higher values. i.e. F corresponds to 64bytes
 			can_tx_header.Identifier = gl_crq.can_tx_id;
 			HAL_FDCAN_AddMessageToTxFifoQ(&hfdcan1, &can_tx_header, gl_crq.can_tx_buf);
 
@@ -87,12 +87,11 @@ int main(void)
 		if(HAL_FDCAN_GetRxFifoFillLevel(&hfdcan1, FDCAN_RX_FIFO0) != 0)
 		{
 			HAL_FDCAN_GetRxMessage(&hfdcan1, FDCAN_RX_FIFO0, &can_rx_header, can_rx_data.d);
-//			if(can_rx_header.Identifier != 0)
 			{
 				uint8_t prestuff[14] = {0};
 				for(int i = 0; i < sizeof(can_rx_data.d); i++)
 					prestuff[i+4] = can_rx_data.d[i];
-				prestuff[1] = can_rx_header.DataLength;
+				prestuff[1] = (can_rx_header.DataLength >> 16) & 0xF;
 				uint16_t* pb = (uint16_t*)&prestuff[0];
 				pb[1] = can_rx_header.Identifier;
 				pb[6] = fletchers_checksum16(pb, 6);
