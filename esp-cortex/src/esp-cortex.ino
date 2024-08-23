@@ -93,6 +93,17 @@ void loop()
     if(len != 0)
     {
       int len = udp.read(udp_pkt_buf,255);
+      
+      int cmp = -1;
+      cmp = cmd_match((const char *)udp_pkt_buf,"WHO_GOES_THERE");
+      if(cmp > 0)
+      {
+        int len = strlen(gl_prefs.name);
+        udp.beginPacket(udp.remoteIP(),udp.remotePort()+gl_prefs.reply_offset);
+        udp.write((uint8_t*)gl_prefs.name,len);
+        udp.endPacket();
+      }
+      
       Serial2.write(udp_pkt_buf,len);
       for(int i = 0; i < len; i++)
         udp_pkt_buf[i] = 0;
@@ -106,9 +117,14 @@ void loop()
        if(pld_len != 0)
        {
           if(gl_prefs.en_fixed_target == 0)
+          {
             udp.beginPacket(udp.remoteIP(), udp.remotePort()+gl_prefs.reply_offset);
-          // else
-            // udp.beginPacket(, udp.remotePort()+gl_prefs.reply_offset);
+          }
+          else
+          {
+            IPAddress remote_ip(gl_prefs.remote_target_ip);
+             udp.beginPacket(remote_ip, udp.remotePort()+gl_prefs.reply_offset);
+          }
           udp.write((uint8_t*)gl_pld_buffer, pld_len);
           udp.endPacket();      
           serial_pkt_sent = 1;
@@ -168,6 +184,78 @@ void loop()
           }
         }
         Serial.printf("Changing ssid to: %s\r\n", gl_prefs.ssid);
+        save = 1;
+      }
+      //////////////////////////////////////////////////////////////////////////////////////////////////////
+      cmp = cmd_match((const char *)gl_console_cmd.buf,"setname ");
+      if(cmp > 0)
+      {
+        match = 1;
+        const char * arg = (const char *)(&gl_console_cmd.buf[cmp]);
+        /*Set the ssid*/
+        for(int i = 0; i < DEVICE_NAME_LEN; i++)
+        {
+          gl_prefs.name[i] = '\0';
+        }
+        for(int i = 0; arg[i] != '\0'; i++)
+        {
+          if(arg[i] != '\r' && arg[i] != '\n')  //copy non carriage return characters
+          {
+            gl_prefs.name[i] = arg[i];
+          }
+        }
+        Serial.printf("Changing device name to: %s\r\n", gl_prefs.name);
+        save = 1;
+      }
+      //////////////////////////////////////////////////////////////////////////////////////////////////////
+      cmp = cmd_match((const char *)gl_console_cmd.buf,"settargetip ");
+      if(cmp > 0)
+      {
+        match = 1;
+        const char * arg = (const char *)(&gl_console_cmd.buf[cmp]);
+        char copy[15] = {0};
+        Serial.printf("Raw str arg: ");
+        for(int i = 0; arg[i] != 0 && arg[i] != '\r' && arg[i] != '\n'; i++)
+        {
+          copy[i] = arg[i];
+          Serial.printf("%0.2X",arg[i]);
+        }
+        Serial.printf(": %s\r\n", copy);
+        IPAddress addr;
+        if(addr.fromString((const char *)copy) == true)
+          Serial.printf("Parsed IP address successfully\r\n");
+        else
+          Serial.printf("Invalid IP string entered\r\n");
+        gl_prefs.remote_target_ip = (uint32_t)addr;
+        Serial.printf("%X\r\n",gl_prefs.remote_target_ip);
+        IPAddress parseconfirm(gl_prefs.remote_target_ip);
+        Serial.printf("Target IP: %s\r\n", parseconfirm.toString().c_str());
+        save = 1;
+      }
+      //////////////////////////////////////////////////////////////////////////////////////////////////////
+      /*
+        Usage:
+          fixedtarget enable
+          fixedtarget disable
+       */
+      cmp = cmd_match((const char *)gl_console_cmd.buf,"fixedtarget ");
+      if(cmp > 0)
+      {
+        match = 1;
+        const char * arg = (const char *)(&gl_console_cmd.buf[cmp]);
+        int argcmp = cmd_match( arg, "enable");
+        if(argcmp > 0)
+        {
+          gl_prefs.en_fixed_target = 1;
+          IPAddress parseconfirm(gl_prefs.remote_target_ip);
+          Serial.printf("Enabling Fixed Target: %s\r\n", parseconfirm.toString().c_str());
+        }
+        argcmp = cmd_match( arg, "disable");
+        if(argcmp > 0)
+        {
+          gl_prefs.en_fixed_target = 0;
+          Serial.printf("Disabling Fixed Target\r\n");
+        }
         save = 1;
       }
 
