@@ -39,7 +39,7 @@ typedef struct uart_it_t
 	uint8_t * tx_buf;	//pointer to txbuffer.
 }uart_it_t;
 
-extern uint8_t gl_ppp_stuff_buf[32];
+extern uint8_t gl_ppp_stuff_buf[128];
 
 extern uart_it_t m_huart2;
 

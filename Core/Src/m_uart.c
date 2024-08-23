@@ -33,7 +33,7 @@ uart_it_t m_huart2 =
 		.tx_idx = 0
 };
 
-uint8_t gl_ppp_stuff_buf[32] = {0};
+uint8_t gl_ppp_stuff_buf[128] = {0};
 
 /**
   */

@@ -54,7 +54,13 @@ void ppp_rx_cplt_callback(uart_it_t * h)
 	}
 }
 
-
+static int32_t ourmotors_position = 0;
+static int16_t ourmotors_current = 0;
+static int16_t ourmotors_velocity = 0;
+static uint32_t remote_position = 0;
+static uint32_t remote_current = 0;
+static uint32_t remote_velocity = 0;
+uint8_t firststuff[14*2 + 2];
 
 int main(void)
 {
@@ -71,9 +77,6 @@ int main(void)
 	uint32_t led_ts = 0;
 	uint32_t can_tx_ts = 0;
 
-	uint32_t remote_position = 0;
-	uint32_t remote_current = 0;
-	uint32_t remote_velocity = 0;
 
 	while (1)
 	{
@@ -87,7 +90,7 @@ int main(void)
 			remote_velocity = pb_cpld->i16[3];
 		}
 
-		if((tick - can_tx_ts) > 10)
+		if((tick - can_tx_ts) > 10)	//TODO: increase bandwidth by adding trigger for TX when we get a can RX
 		{
 			can_tx_ts = tick;
 
@@ -104,9 +107,9 @@ int main(void)
 			HAL_FDCAN_GetRxMessage(&hfdcan1, FDCAN_RX_FIFO0, &can_rx_header, can_rx_data.d);
 			{
 
-				int32_t ourmotors_position = can_rx_data.i32[0];
-				int16_t ourmotors_current = can_rx_data.i16[2];
-				int16_t ourmotors_velocity = can_rx_data.i16[3];
+				ourmotors_position = can_rx_data.i32[0];
+				ourmotors_current = can_rx_data.i16[2];
+				ourmotors_velocity = can_rx_data.i16[3];
 				can_payload_t udp_tx_pld = {0};
 				udp_tx_pld.i32[0] = -ourmotors_position;
 				udp_tx_pld.i16[2] = -ourmotors_current;
@@ -131,7 +134,7 @@ int main(void)
 					prestuff[i+4] = udp_tx_pld.d[i];
 				pb[6] = fletchers_checksum16(pb, 6);
 
-				uint8_t firststuff[sizeof(prestuff)*2 + 2];
+
 
 				int len = PPP_stuff(prestuff, sizeof(prestuff), firststuff, sizeof(firststuff));
 				len = PPP_stuff(firststuff, len, gl_ppp_stuff_buf, sizeof(gl_ppp_stuff_buf));	//double stuff the buffer! AAAH

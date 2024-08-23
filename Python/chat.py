@@ -93,7 +93,8 @@ if __name__ == "__main__":
 						velocity = i16[5]
 
 						print(msg_fmt, msg_len, can_id, position, current, velocity)
-			
+				else:
+					print(pkt)
 				
 			except BlockingIOError:
 				pass
