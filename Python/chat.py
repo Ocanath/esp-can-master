@@ -69,7 +69,7 @@ if __name__ == "__main__":
 
 			try:
 				pkt,source_addr = server_socket.recvfrom(512)
-				if(len(pkt) > 2):
+				if(len(pkt) == 14):	#for now, just assume fixed length 14
 					# print("From: "+source_addr[0]+":"+str(source_addr[1])+": ["+str(pkt) + "],  " + str(len(pkt)) + " bytes" )
 					i32len = int(len(pkt)/4)
 					fmtstr_i32 = '<' + 'i'*i32len
