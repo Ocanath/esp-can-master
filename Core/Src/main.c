@@ -54,6 +54,7 @@ void ppp_rx_cplt_callback(uart_it_t * h)
 	}
 }
 
+static uint8_t firststuff[32] = {0};
 
 int main(void)
 {
@@ -106,7 +107,9 @@ int main(void)
 				for(int i = 0; i < sizeof(can_rx_data.d); i++)
 					prestuff[i+4] = can_rx_data.d[i];
 				pb[6] = fletchers_checksum16(pb, 6);
-				int len = PPP_stuff(prestuff, sizeof(prestuff), gl_ppp_stuff_buf, sizeof(gl_ppp_stuff_buf));
+
+				int len = PPP_stuff(prestuff, sizeof(prestuff), firststuff, sizeof(firststuff));
+				len = PPP_stuff(firststuff, len, gl_ppp_stuff_buf, sizeof(gl_ppp_stuff_buf));
 				m_uart_tx_start(&m_huart2, gl_ppp_stuff_buf, len);
 			}
 		}
