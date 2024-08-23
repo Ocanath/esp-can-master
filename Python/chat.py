@@ -24,7 +24,7 @@ def create_can_payload(msg_type, tx_len, id, can_payload):
 
 if __name__ == "__main__":
 
-	target_addr = ('192.168.123.69', 5670)
+	target_addr = ('192.168.123.77', 5670)
 	server_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
 	server_socket.settimeout(0.0) #make non blocking
 	udp_server_addr = ('0.0.0.0', 5670)
