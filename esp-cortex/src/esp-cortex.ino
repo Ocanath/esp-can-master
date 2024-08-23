@@ -123,7 +123,7 @@ void loop()
           else
           {
             IPAddress remote_ip(gl_prefs.remote_target_ip);
-             udp.beginPacket(remote_ip, udp.remotePort()+gl_prefs.reply_offset);
+            udp.beginPacket(remote_ip, gl_prefs.port+gl_prefs.reply_offset);
           }
           udp.write((uint8_t*)gl_pld_buffer, pld_len);
           udp.endPacket();      

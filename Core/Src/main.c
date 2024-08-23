@@ -95,7 +95,7 @@ int main(void)
 			can_tx_ts = tick;
 
 			can_tx_header.DataLength = (8 & 0xF) << 16;	//note: len value above 8 will index into higher values. i.e. F corresponds to 64bytes
-			can_tx_header.Identifier = 1; //we'll switch to using motor 01, FOR NOW. can switch V7-R3 over to slave too for this purpose
+			can_tx_header.Identifier = 2; //we'll switch to using motor 01, FOR NOW. can switch V7-R3 over to slave too for this purpose
 			can_tx_data.i32[0] = remote_position;	//not totally sure abt the negation right now
 			can_tx_data.i16[2] = remote_current;
 			can_tx_data.i16[3] = remote_velocity;
