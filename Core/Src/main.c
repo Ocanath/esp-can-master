@@ -55,6 +55,7 @@ void ppp_rx_cplt_callback(uart_it_t * h)
 }
 
 
+
 int main(void)
 {
 	HAL_Init();
@@ -68,26 +69,49 @@ int main(void)
 	FDCAN_Config();
 
 	uint32_t led_ts = 0;
+	uint32_t can_tx_ts = 0;
+
+	uint32_t remote_position = 0;
+	uint32_t remote_current = 0;
+	uint32_t remote_velocity = 0;
+
 	while (1)
 	{
 		uint32_t tick = HAL_GetTick();
-
 		if(trigger_can_tx)
 		{
-			led_ts = tick;	//led stays on for 10ms if there is can tx activity (or rx activity?)
-			HAL_GPIO_WritePin(LED_GPIO_Port, LED_Pin, 1);
-
-			can_tx_header.DataLength = (gl_crq.len & 0xF) << 16;	//note: len value above 8 will index into higher values. i.e. F corresponds to 64bytes
-			can_tx_header.Identifier = gl_crq.can_tx_id;
-			HAL_FDCAN_AddMessageToTxFifoQ(&hfdcan1, &can_tx_header, gl_crq.can_tx_buf);
-
 			trigger_can_tx = 0;
+			can_payload_t * pb_cpld = (can_payload_t*)(&gl_crq.can_tx_buf[0]);
+			remote_position = pb_cpld->i32[0];
+			remote_current = pb_cpld->i16[2];
+			remote_velocity = pb_cpld->i16[3];
+		}
+
+		if((tick - can_tx_ts) > 10)
+		{
+			can_tx_ts = tick;
+
+			can_tx_header.DataLength = (8 & 0xF) << 16;	//note: len value above 8 will index into higher values. i.e. F corresponds to 64bytes
+			can_tx_header.Identifier = 1; //we'll switch to using motor 01, FOR NOW. can switch V7-R3 over to slave too for this purpose
+			can_tx_data.i32[0] = remote_position;	//not totally sure abt the negation right now
+			can_tx_data.i16[2] = remote_current;
+			can_tx_data.i16[3] = remote_velocity;
+			HAL_FDCAN_AddMessageToTxFifoQ(&hfdcan1, &can_tx_header, can_tx_data.d);
 		}
 
 		if(HAL_FDCAN_GetRxFifoFillLevel(&hfdcan1, FDCAN_RX_FIFO0) != 0)
 		{
 			HAL_FDCAN_GetRxMessage(&hfdcan1, FDCAN_RX_FIFO0, &can_rx_header, can_rx_data.d);
 			{
+
+				int32_t ourmotors_position = can_rx_data.i32[0];
+				int16_t ourmotors_current = can_rx_data.i16[2];
+				int16_t ourmotors_velocity = can_rx_data.i16[3];
+				can_payload_t udp_tx_pld = {0};
+				udp_tx_pld.i32[0] = -ourmotors_position;
+				udp_tx_pld.i16[2] = -ourmotors_current;
+				udp_tx_pld.i16[3] = -ourmotors_velocity;
+
 				/*
 				 * byte 0: msg format
 				 * byte 1: length
@@ -99,23 +123,28 @@ int main(void)
 				 * bytes 12-13: fletcher's checksum				 *
 				 **/
 				uint8_t prestuff[14] = {0};	//length is currently fixed, but in future, if we continue with FD can, we will need to extend this.
-				prestuff[0] = gl_crq.type;
-				prestuff[1] = (can_rx_header.DataLength >> 16) & 0xF;
+				prestuff[0] = 0;
+				prestuff[1] = 8;
 				uint16_t* pb = (uint16_t*)&prestuff[0];
-				pb[1] = can_rx_header.Identifier;
-				for(int i = 0; i < sizeof(can_rx_data.d); i++)
-					prestuff[i+4] = can_rx_data.d[i];
+				pb[1] = 2;	//id of remote can target
+				for(int i = 0; i < sizeof(udp_tx_pld.d); i++)
+					prestuff[i+4] = udp_tx_pld.d[i];
 				pb[6] = fletchers_checksum16(pb, 6);
-				int len = PPP_stuff(prestuff, sizeof(prestuff), gl_ppp_stuff_buf, sizeof(gl_ppp_stuff_buf));
+
+				uint8_t firststuff[sizeof(prestuff)*2 + 2];
+
+				int len = PPP_stuff(prestuff, sizeof(prestuff), firststuff, sizeof(firststuff));
+				len = PPP_stuff(firststuff, len, gl_ppp_stuff_buf, sizeof(gl_ppp_stuff_buf));	//double stuff the buffer! AAAH
 				m_uart_tx_start(&m_huart2, gl_ppp_stuff_buf, len);
 			}
 		}
 
 
 
-		if(tick - led_ts > 10)
+		if(tick - led_ts > 100)
 		{
-			HAL_GPIO_WritePin(LED_GPIO_Port, LED_Pin, 0);
+			HAL_GPIO_TogglePin(LED_GPIO_Port, LED_Pin);
+			led_ts = tick;	//led stays on for 10ms if there is can tx activity (or rx activity?)
 		}
 	}
 }
