@@ -88,12 +88,23 @@ int main(void)
 		{
 			HAL_FDCAN_GetRxMessage(&hfdcan1, FDCAN_RX_FIFO0, &can_rx_header, can_rx_data.d);
 			{
-				uint8_t prestuff[14] = {0};
-				for(int i = 0; i < sizeof(can_rx_data.d); i++)
-					prestuff[i+4] = can_rx_data.d[i];
+				/*
+				 * byte 0: msg format
+				 * byte 1: length
+				 * bytes 2-3: can identifier
+				 * bytes 4-11: can payload content
+				 * 	bytes 4,5,6,7/i32[1]: position
+				 *	bytes 8,9: current
+				 *	bytes 10,11: velocity
+				 * bytes 12-13: fletcher's checksum				 *
+				 **/
+				uint8_t prestuff[14] = {0};	//length is currently fixed, but in future, if we continue with FD can, we will need to extend this.
+				prestuff[0] = gl_crq.type;
 				prestuff[1] = (can_rx_header.DataLength >> 16) & 0xF;
 				uint16_t* pb = (uint16_t*)&prestuff[0];
 				pb[1] = can_rx_header.Identifier;
+				for(int i = 0; i < sizeof(can_rx_data.d); i++)
+					prestuff[i+4] = can_rx_data.d[i];
 				pb[6] = fletchers_checksum16(pb, 6);
 				int len = PPP_stuff(prestuff, sizeof(prestuff), gl_ppp_stuff_buf, sizeof(gl_ppp_stuff_buf));
 				m_uart_tx_start(&m_huart2, gl_ppp_stuff_buf, len);

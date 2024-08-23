@@ -69,7 +69,32 @@ if __name__ == "__main__":
 
 			try:
 				pkt,source_addr = server_socket.recvfrom(512)
-				print("From: "+source_addr[0]+":"+str(source_addr[1])+": ["+str(pkt) + "],  " + str(len(pkt)) + " bytes" )
+				if(len(pkt) > 2):
+					# print("From: "+source_addr[0]+":"+str(source_addr[1])+": ["+str(pkt) + "],  " + str(len(pkt)) + " bytes" )
+					i32len = int(len(pkt)/4)
+					fmtstr_i32 = '<' + 'i'*i32len
+					i32 = struct.unpack(fmtstr_i32, pkt[0:(i32len*4)])
+
+					i16len = int(len(pkt)/2)
+					fmtstr_i16 = '<' + 'h'*i16len
+					i16 = struct.unpack(fmtstr_i16, pkt[0:(i16len*2)])
+
+					chk = fletchers_checksum16(pkt[0:(len(pkt)-2)])
+					schk = struct.unpack('<H', pkt[(len(pkt)-2):(len(pkt))])[0]
+					
+					if(chk != schk):
+						print("chk mismatch")
+					else:
+						msg_fmt = pkt[0]
+						msg_len = pkt[1]
+						can_id = i16[1]
+						position = i32[1]
+						current = i16[4]
+						velocity = i16[5]
+
+						print(msg_fmt, msg_len, can_id, position, current, velocity)
+			
+				
 			except BlockingIOError:
 				pass
 		except KeyboardInterrupt:
