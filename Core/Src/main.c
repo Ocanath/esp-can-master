@@ -57,9 +57,9 @@ void ppp_rx_cplt_callback(uart_it_t * h)
 static int32_t ourmotors_position = 0;
 static int16_t ourmotors_current = 0;
 static int16_t ourmotors_velocity = 0;
-static uint32_t remote_position = 0;
-static uint32_t remote_current = 0;
-static uint32_t remote_velocity = 0;
+static int32_t remote_position = 0;
+static int32_t remote_current = 0;
+static int32_t remote_velocity = 0;
 uint8_t firststuff[14*2 + 2];
 
 int main(void)
@@ -83,22 +83,23 @@ int main(void)
 		uint32_t tick = HAL_GetTick();
 		if(trigger_can_tx)
 		{
-			trigger_can_tx = 0;
 			can_payload_t * pb_cpld = (can_payload_t*)(&gl_crq.can_tx_buf[0]);
 			remote_position = pb_cpld->i32[0];
 			remote_current = pb_cpld->i16[2];
 			remote_velocity = pb_cpld->i16[3];
 		}
 
-		if((tick - can_tx_ts) > 10)	//TODO: increase bandwidth by adding trigger for TX when we get a can RX
+		if((tick - can_tx_ts) > 10 || trigger_can_tx != 0)	//TODO: increase bandwidth by adding trigger for TX when we get a can RX
 		{
+			trigger_can_tx = 0;
+
 			can_tx_ts = tick;
 
 			can_tx_header.DataLength = (8 & 0xF) << 16;	//note: len value above 8 will index into higher values. i.e. F corresponds to 64bytes
 			can_tx_header.Identifier = 2; //we'll switch to using motor 01, FOR NOW. can switch V7-R3 over to slave too for this purpose
-			can_tx_data.i32[0] = remote_position;	//not totally sure abt the negation right now
-			can_tx_data.i16[2] = remote_current;
-			can_tx_data.i16[3] = remote_velocity;
+			can_tx_data.i32[0] = -remote_position;	//not totally sure abt the negation right now
+			can_tx_data.i16[2] = -remote_current;
+			can_tx_data.i16[3] = -remote_velocity;
 			HAL_FDCAN_AddMessageToTxFifoQ(&hfdcan1, &can_tx_header, can_tx_data.d);
 		}
 
