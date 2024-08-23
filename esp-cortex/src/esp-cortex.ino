@@ -13,6 +13,9 @@
 #define LED_PIN 32
 #define BOOT_PIN 22
 
+/*
+Tested with 3.0.3 esp32 arduino board package by Espressif Systems.
+*/
 
 #define IPV4_ADDR_ANY   0x00000000UL
 
@@ -102,7 +105,10 @@ void loop()
        int pld_len = parse_PPP_stream(new_byte, gl_pld_buffer, PAYLOAD_BUFFER_SIZE, gl_unstuffing_buffer, UNSTUFFING_BUFFER_SIZE, &ppp_stuffing_bidx);
        if(pld_len != 0)
        {
-          udp.beginPacket(udp.remoteIP(), udp.remotePort()+gl_prefs.reply_offset);
+          if(gl_prefs.en_fixed_target == 0)
+            udp.beginPacket(udp.remoteIP(), udp.remotePort()+gl_prefs.reply_offset);
+          // else
+            // udp.beginPacket(, udp.remotePort()+gl_prefs.reply_offset);
           udp.write((uint8_t*)gl_pld_buffer, pld_len);
           udp.endPacket();      
           serial_pkt_sent = 1;
