@@ -103,7 +103,7 @@ void setup() {
 	Serial2.end();
 
 	Serial.begin(2000000);	//this can stay 2mbps. WHICH IS CRAZY omg
-	Serial2.begin(2000000, SERIAL_8N1, 16, 17);	//once you have a working system, try pushing this way higher (2MBPS is supported by ESP32!!)
+	// Serial2.begin(2000000, SERIAL_8N1, 16, 17);	//once you have a working system, try pushing this way higher (2MBPS is supported by ESP32!!)
 
 	int connected = 0;
 	Serial.printf("\r\n\r\n Trying \'%s\' \'%s\'\r\n",gl_prefs.ssid, gl_prefs.password);
@@ -201,7 +201,8 @@ void loop()
 	{
 		arm_the_stupid_thing();
 	}
-	
+	Serial2.begin(2000000, SERIAL_8N1, 16, 17);	//once you have a working system, try pushing this way higher (2MBPS is supported by ESP32!!)
+
 	IPAddress server_address((uint32_t)IPV4_ADDR_ANY); //note: may want to change to our local IP, to support multiple devices on the network
 	udp.begin(server_address, gl_prefs.port);
 
