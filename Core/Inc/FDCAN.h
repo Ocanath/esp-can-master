@@ -17,7 +17,49 @@
 extern int32_t gl_v_uS_conv;	//used to calculate expression of rotor velocity in (2^radix)*radians/sec
 extern int32_t gl_iq_rshift;
 
-typedef enum {FOC_MODE, SINUSOIDAL_MODE, PCTL_IQ, PCTL_VQ} control_mode_t;	//foc with velocity?
+typedef enum {FOC_MODE, SINUSOIDAL_MODE, PCTL_IQ, PCTL_VQ, OPEN_LOOP_MODE} control_mode_t;	//foc with velocity?
+
+enum {
+
+	CALC_ALIGN_OFFSET = 0x1,
+	CALC_ENC_MIDPOINTS = 0x2,
+
+
+	LED_ON = 0xDE,
+	LED_OFF =0xFE,
+	LED_BLINK= 0xAA,
+
+	EN_UART_ENC = 0x34,
+	DIS_UART_ENC = 0x35,
+
+	SET_FOC_MODE = 0x36,	//configure to foc mode. need to do once and it takes
+	SET_SINUSOIDAL_MODE = 0x37,	//configure to velocity mode. send once and it takes
+	CHANGE_V_RADIX = 0x38,	//radix for velocity expression setting
+	CHANGE_IQ_RSHIFT = 0x39,	//rightshift for iq expression setting
+
+	SET_PCTL_IQ_MODE = 0x40,	//configure to position control using FOC mode. send once and it takes. Needs all position settings written to do anything (stable)
+	CHANGE_PCTL_IQ_KP_VALUE = 0x41,
+	CHANGE_PCTL_IQ_KP_RADIX = 0x42,
+	CHANGE_PCTL_IQ_KI_VALUE = 0x43,
+	CHANGE_PCTL_IQ_KI_RADIX = 0x44,
+	CHANGE_PCTL_IQ_KD_VALUE = 0x45,
+	CHANGE_PCTL_IQ_KD_RADIX = 0x46,
+	CHANGE_PCTL_IQ_XSAT = 0x47,
+	CHANGE_PCTL_IQ_OUTSAT = 0x48,
+	CHANGE_PCTL_IQ_OUT_RSHIFT = 0x49,
+
+
+	SET_PCTL_VQ_MODE = 0x4A,	//configure to position control using sinusoidal mode. send once and it takes. Needs all position settings written to do anything (stable)
+	CHANGE_PCTL_VQ_KP_VALUE = 0x4B,
+	CHANGE_PCTL_VQ_KP_RADIX = 0x4C,
+	CHANGE_PCTL_VQ_KI_VALUE = 0x4D,
+	CHANGE_PCTL_VQ_KI_RADIX = 0x4E,
+	CHANGE_PCTL_VQ_KD_VALUE = 0x4F,
+	CHANGE_PCTL_VQ_KD_RADIX = 0x50,
+	CHANGE_PCTL_VQ_XSAT = 0x51,
+	CHANGE_PCTL_VQ_OUTSAT = 0x52,
+	CHANGE_PCTL_VQ_OUT_RSHIFT = 0x53
+};
 
 typedef union
 {

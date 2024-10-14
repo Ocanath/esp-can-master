@@ -57,10 +57,8 @@ void ppp_rx_cplt_callback(uart_it_t * h)
 static int32_t ourmotors_position = 0;
 static int16_t ourmotors_current = 0;
 static int16_t ourmotors_velocity = 0;
-static int32_t remote_position = 0;
-static int32_t remote_current = 0;
-static int32_t remote_velocity = 0;
 uint8_t firststuff[14*2 + 2];
+
 
 int main(void)
 {
@@ -78,15 +76,16 @@ int main(void)
 	uint32_t can_tx_ts = 0;
 
 
+	uint16_t idlist[] = {1,2,3};
+	const int num_joints = sizeof(idlist)/sizeof(uint16_t);
+	uint8_t led_state[sizeof(idlist)/sizeof(uint16_t)] = {0};
+	int led_blink_idx = 0;
 	while (1)
 	{
 		uint32_t tick = HAL_GetTick();
 		if(trigger_can_tx)
 		{
-			can_payload_t * pb_cpld = (can_payload_t*)(&gl_crq.can_tx_buf[0]);
-			remote_position = pb_cpld->i32[0];
-			remote_current = pb_cpld->i16[2];
-			remote_velocity = pb_cpld->i16[3];
+//			can_payload_t * pb_cpld = (can_payload_t*)(&gl_crq.can_tx_buf[0]);
 		}
 
 		if((tick - can_tx_ts) > 10 || trigger_can_tx != 0)	//TODO: increase bandwidth by adding trigger for TX when we get a can RX
@@ -95,18 +94,31 @@ int main(void)
 
 			can_tx_ts = tick;
 
-			can_tx_header.DataLength = (8 & 0xF) << 16;	//note: len value above 8 will index into higher values. i.e. F corresponds to 64bytes
-			can_tx_header.Identifier = 2; //we'll switch to using motor 01, FOR NOW. can switch V7-R3 over to slave too for this purpose
-			can_tx_data.i32[0] = -remote_position;	//not totally sure abt the negation right now
-			can_tx_data.i16[2] = -remote_current;
-			can_tx_data.i16[3] = -remote_velocity;
-			HAL_FDCAN_AddMessageToTxFifoQ(&hfdcan1, &can_tx_header, can_tx_data.d);
+
+
+			int num_bytes = 8;
+
+
+			for(int ididx = 0; ididx < 3; ididx++)
+			{
+				for(int i = 0; i < 8; i++)
+					can_tx_data.d[i] = 0;
+				if(led_state[ididx] == 0)
+					can_tx_data.d[0] = LED_OFF;
+				else
+					can_tx_data.d[0] = LED_ON;
+
+				can_tx_header.Identifier = (0x7FF - idlist[ididx]);	//0x7FF for misc commands
+				can_tx_header.DataLength = (num_bytes & 0xF) << 16;	//note: len value above 8 will index into higher values. i.e. F corresponds to 64bytes
+				HAL_FDCAN_AddMessageToTxFifoQ(&hfdcan1, &can_tx_header, can_tx_data.d);
+			}
 		}
 
 		if(HAL_FDCAN_GetRxFifoFillLevel(&hfdcan1, FDCAN_RX_FIFO0) != 0)
 		{
 			HAL_FDCAN_GetRxMessage(&hfdcan1, FDCAN_RX_FIFO0, &can_rx_header, can_rx_data.d);
 			{
+//				uint16_t id = can_rx_header.Identifier;//note, test this, should retrieve correct ID
 
 				ourmotors_position = can_rx_data.i32[0];
 				ourmotors_current = can_rx_data.i16[2];
@@ -147,6 +159,8 @@ int main(void)
 
 		if(tick - led_ts > 100)
 		{
+			led_state[led_blink_idx] = (~led_state[led_blink_idx]) & 1;
+			led_blink_idx = (led_blink_idx + 1) % num_joints;
 			HAL_GPIO_TogglePin(LED_GPIO_Port, LED_Pin);
 			led_ts = tick;	//led stays on for 10ms if there is can tx activity (or rx activity?)
 		}
