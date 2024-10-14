@@ -87,6 +87,7 @@ void send_misc_i32(uint16_t id, uint8_t header, int32_t val)
 	can_tx_header.Identifier = (0x7FF - id);	//0x7FF for misc commands
 	can_tx_header.DataLength = (8 & 0xF) << 16;	//note: len value above 8 will index into higher values. i.e. F corresponds to 64bytes
 	HAL_FDCAN_AddMessageToTxFifoQ(&hfdcan1, &can_tx_header, can_tx_data.d);
+	while((hfdcan1.Instance->TXFQS & FDCAN_TXFQS_TFQF) != 0U);	//convert to timeout with error
 }
 
 void send_motor_i32(uint16_t id, int32_t val)
@@ -96,6 +97,7 @@ void send_motor_i32(uint16_t id, int32_t val)
 	can_tx_header.Identifier = id;	//0x7FF for misc commands
 	can_tx_header.DataLength = (8 & 0xF) << 16;	//note: len value above 8 will index into higher values. i.e. F corresponds to 64bytes
 	HAL_FDCAN_AddMessageToTxFifoQ(&hfdcan1, &can_tx_header, can_tx_data.d);
+	while((hfdcan1.Instance->TXFQS & FDCAN_TXFQS_TFQF) != 0U);
 }
 
 static int32_t testval = 0;
@@ -116,14 +118,22 @@ int main(void)
 	uint32_t led_ts = 0;
 	uint32_t can_tx_ts = 0;
 
+	HAL_Delay(1000);
 
 	uint16_t idlist[] = {3,2,1};
 	const int num_joints = sizeof(idlist)/sizeof(uint16_t);
 	uint8_t led_state[sizeof(idlist)/sizeof(uint16_t)] = {0};
 	int led_blink_idx = 0;
-	send_misc_u8(3, SET_SINUSOIDAL_MODE, 0);
-	send_misc_u8(2, SET_SINUSOIDAL_MODE, 0);
-	send_misc_u8(1, SET_SINUSOIDAL_MODE, 0);
+	send_misc_u8(3, SET_PCTL_VQ_MODE, 0);
+	send_misc_u8(2, SET_PCTL_VQ_MODE, 0);
+	send_misc_u8(1, SET_PCTL_VQ_MODE, 0);
+
+	send_misc_i32(3, CHANGE_PCTL_VQ_KP_VALUE, 30);
+	send_misc_i32(3, CHANGE_PCTL_VQ_KP_RADIX, 5);
+	send_misc_i32(3, CHANGE_PCTL_VQ_KI_VALUE, 1);
+	send_misc_i32(3, CHANGE_PCTL_VQ_KI_RADIX, 10);
+	send_misc_i32(3, CHANGE_PCTL_VQ_OUTSAT, 2047);
+
 
 	while (1)
 	{
@@ -140,9 +150,8 @@ int main(void)
 			can_tx_ts = tick;
 			for(int i = 0; i < num_joints; i++)
 			{
-				testval = (sin_12b(wrap_2pi_12b(tick*10 + (PI_12B*i/3)))*1000)/4096;
+				testval = sin_12b(wrap_2pi_12b(tick*10 + (PI_12B*i/3)))*4;
 				send_motor_i32(idlist[i], testval);
-//				while((hfdcan1.Instance->TXFQS & FDCAN_TXFQS_TFQF) != 0U);
 			}
 		}
 
