@@ -3,6 +3,7 @@
 #include "PPP.h"
 #include "checksum.h"
 #include "FDCAN.h"
+#include "trig_fixed.h"
 
 typedef union {
 	int8_t d8[sizeof(uint32_t)/sizeof(int8_t)];
@@ -60,6 +61,46 @@ static int16_t ourmotors_velocity = 0;
 uint8_t firststuff[14*2 + 2];
 
 
+void send_misc_u8(uint16_t id, uint8_t header, uint8_t val)
+{
+	for(int i = 0; i < 8; i++)
+		can_tx_data.d[i] = 0;
+	can_tx_data.d[0] = header;
+	can_tx_data.d[1] = val;
+	can_tx_header.Identifier = (0x7FF - id);	//0x7FF for misc commands
+	can_tx_header.DataLength = (8 & 0xF) << 16;	//note: len value above 8 will index into higher values. i.e. F corresponds to 64bytes
+	HAL_FDCAN_AddMessageToTxFifoQ(&hfdcan1, &can_tx_header, can_tx_data.d);
+}
+
+void send_misc_i32(uint16_t id, uint8_t header, int32_t val)
+{
+	for(int i = 0; i < 8; i++)
+		can_tx_data.d[i] = 0;
+	can_tx_data.d[0] = header;
+	u32_fmt_t fmt;
+	fmt.i32 = val;
+	for(int i = 0; i < sizeof(int32_t); i++)
+	{
+		can_tx_data.d[i+1] = fmt.u8[i];
+	}
+	can_tx_data.d[1] = val;
+	can_tx_header.Identifier = (0x7FF - id);	//0x7FF for misc commands
+	can_tx_header.DataLength = (8 & 0xF) << 16;	//note: len value above 8 will index into higher values. i.e. F corresponds to 64bytes
+	HAL_FDCAN_AddMessageToTxFifoQ(&hfdcan1, &can_tx_header, can_tx_data.d);
+}
+
+void send_motor_i32(uint16_t id, int32_t val)
+{
+
+	can_tx_data.i32[0] = val;
+	can_tx_header.Identifier = id;	//0x7FF for misc commands
+	can_tx_header.DataLength = (8 & 0xF) << 16;	//note: len value above 8 will index into higher values. i.e. F corresponds to 64bytes
+	HAL_FDCAN_AddMessageToTxFifoQ(&hfdcan1, &can_tx_header, can_tx_data.d);
+}
+
+static int32_t testval = 0;
+
+
 int main(void)
 {
 	HAL_Init();
@@ -76,10 +117,14 @@ int main(void)
 	uint32_t can_tx_ts = 0;
 
 
-	uint16_t idlist[] = {1,2,3};
+	uint16_t idlist[] = {3,2,1};
 	const int num_joints = sizeof(idlist)/sizeof(uint16_t);
 	uint8_t led_state[sizeof(idlist)/sizeof(uint16_t)] = {0};
 	int led_blink_idx = 0;
+	send_misc_u8(3, SET_SINUSOIDAL_MODE, 0);
+	send_misc_u8(2, SET_SINUSOIDAL_MODE, 0);
+	send_misc_u8(1, SET_SINUSOIDAL_MODE, 0);
+
 	while (1)
 	{
 		uint32_t tick = HAL_GetTick();
@@ -93,24 +138,11 @@ int main(void)
 			trigger_can_tx = 0;
 
 			can_tx_ts = tick;
-
-
-
-			int num_bytes = 8;
-
-
-			for(int ididx = 0; ididx < 3; ididx++)
+			for(int i = 0; i < num_joints; i++)
 			{
-				for(int i = 0; i < 8; i++)
-					can_tx_data.d[i] = 0;
-				if(led_state[ididx] == 0)
-					can_tx_data.d[0] = LED_OFF;
-				else
-					can_tx_data.d[0] = LED_ON;
-
-				can_tx_header.Identifier = (0x7FF - idlist[ididx]);	//0x7FF for misc commands
-				can_tx_header.DataLength = (num_bytes & 0xF) << 16;	//note: len value above 8 will index into higher values. i.e. F corresponds to 64bytes
-				HAL_FDCAN_AddMessageToTxFifoQ(&hfdcan1, &can_tx_header, can_tx_data.d);
+				testval = (sin_12b(wrap_2pi_12b(tick*10 + (PI_12B*i/3)))*1000)/4096;
+				send_motor_i32(idlist[i], testval);
+//				while((hfdcan1.Instance->TXFQS & FDCAN_TXFQS_TFQF) != 0U);
 			}
 		}
 
@@ -161,6 +193,14 @@ int main(void)
 		{
 			led_state[led_blink_idx] = (~led_state[led_blink_idx]) & 1;
 			led_blink_idx = (led_blink_idx + 1) % num_joints;
+//			for(int ididx = 0; ididx < 3; ididx++)
+//			{
+//				if(led_state[ididx] == 0)
+//					send_misc_u8(idlist[ididx], LED_OFF, 0);
+//				else
+//					send_misc_u8(idlist[ididx] , LED_ON, 0);
+//			}
+
 			HAL_GPIO_TogglePin(LED_GPIO_Port, LED_Pin);
 			led_ts = tick;	//led stays on for 10ms if there is can tx activity (or rx activity?)
 		}
