@@ -55,9 +55,6 @@ void ppp_rx_cplt_callback(uart_it_t * h)
 	}
 }
 
-static int32_t ourmotors_position = 0;
-static int16_t ourmotors_current = 0;
-static int16_t ourmotors_velocity = 0;
 uint8_t firststuff[14*2 + 2];
 
 
@@ -102,10 +99,18 @@ void send_motor_i32(uint16_t id, int32_t val)
 
 static int32_t testval = 0;
 
+typedef struct m_motor_t
+{
+	int32_t position;
+	int16_t current;
+	int16_t velocity;
+}m_motor_t;
+
+static m_motor_t motors[3] = {0};
 
 int main(void)
 {
-	HAL_Init();
+ 	HAL_Init();
 	SystemClock_Config();
 	MX_GPIO_Init();
 	MX_TIM1_Init();
@@ -150,7 +155,8 @@ int main(void)
 			can_tx_ts = tick;
 			for(int i = 0; i < num_joints; i++)
 			{
-				testval = sin_12b(wrap_2pi_12b(tick*10 + (PI_12B*i/3)))*4;
+				//testval = sin_12b(wrap_2pi_12b(tick*10 + (PI_12B*i/3)))*4;
+				testval = 0;
 				send_motor_i32(idlist[i], testval);
 			}
 		}
@@ -159,16 +165,12 @@ int main(void)
 		{
 			HAL_FDCAN_GetRxMessage(&hfdcan1, FDCAN_RX_FIFO0, &can_rx_header, can_rx_data.d);
 			{
-//				uint16_t id = can_rx_header.Identifier;//note, test this, should retrieve correct ID
+				uint16_t id = can_rx_header.Identifier;//note, test this, should retrieve correct ID
+				motors[id-1].position = can_rx_data.i32[0];
+				motors[id-1].current = can_rx_data.i16[2];
+				motors[id-1].velocity = can_rx_data.i16[3];
 
-				ourmotors_position = can_rx_data.i32[0];
-				ourmotors_current = can_rx_data.i16[2];
-				ourmotors_velocity = can_rx_data.i16[3];
-				can_payload_t udp_tx_pld = {0};
-				udp_tx_pld.i32[0] = -ourmotors_position;
-				udp_tx_pld.i16[2] = -ourmotors_current;
-				udp_tx_pld.i16[3] = -ourmotors_velocity;
-
+				uint8_t tx_pld[6] = {0};
 				/*
 				 * byte 0: msg format
 				 * byte 1: length
@@ -184,11 +186,9 @@ int main(void)
 				prestuff[1] = 8;
 				uint16_t* pb = (uint16_t*)&prestuff[0];
 				pb[1] = 2;	//id of remote can target
-				for(int i = 0; i < sizeof(udp_tx_pld.d); i++)
-					prestuff[i+4] = udp_tx_pld.d[i];
+				for(int i = 0; i < sizeof(tx_pld); i++)
+					prestuff[i+4] = tx_pld[i];
 				pb[6] = fletchers_checksum16(pb, 6);
-
-
 
 				int len = PPP_stuff(prestuff, sizeof(prestuff), firststuff, sizeof(firststuff));
 				len = PPP_stuff(firststuff, len, gl_ppp_stuff_buf, sizeof(gl_ppp_stuff_buf));	//double stuff the buffer! AAAH
