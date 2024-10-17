@@ -5,6 +5,8 @@
 #include "FDCAN.h"
 #include "trig_fixed.h"
 
+#define NUM_MOTORS 3
+
 typedef union {
 	int8_t d8[sizeof(uint32_t)/sizeof(int8_t)];
 	uint8_t u8[sizeof(uint32_t)/sizeof(uint8_t)];
@@ -97,16 +99,39 @@ void send_motor_i32(uint16_t id, int32_t val)
 	while((hfdcan1.Instance->TXFQS & FDCAN_TXFQS_TFQF) != 0U);
 }
 
-static int32_t testval = 0;
-
 typedef struct m_motor_t
 {
+	uint16_t id;
+	int32_t can_command;
+
 	int32_t position;
 	int16_t current;
 	int16_t velocity;
+
+	uint8_t control_mode;
+	//position control iq vq settings
+	uint8_t enabled_uart_encoder;
+	uint8_t led_state;
 }m_motor_t;
 
-static m_motor_t motors[3] = {0};
+static m_motor_t motors[NUM_MOTORS] =
+{
+			{
+					.id = 1,
+					.control_mode = SET_SINUSOIDAL_MODE,
+					.led_state = 1
+			},
+			{
+					.id = 2,
+					.control_mode = SET_PCTL_VQ_MODE,
+					.led_state = 1
+			},
+			{
+					.id = 3,
+					.control_mode = SET_PCTL_VQ_MODE,
+					.led_state = 1
+			}
+};
 
 int main(void)
 {
@@ -125,21 +150,24 @@ int main(void)
 
 	HAL_Delay(1000);
 
-	uint16_t idlist[] = {1,2,3};
-	int ididx = 0;
-	const int num_joints = sizeof(idlist)/sizeof(uint16_t);
-	uint8_t led_state[sizeof(idlist)/sizeof(uint16_t)] = {0};
-	int led_blink_idx = 0;
+	int tx_ididx = 0;
 	send_misc_u8(3, SET_PCTL_VQ_MODE, 0);
+	HAL_Delay(1);
 	send_misc_u8(2, SET_PCTL_VQ_MODE, 0);
+	HAL_Delay(1);
 	send_misc_u8(1, SET_PCTL_VQ_MODE, 0);
+	HAL_Delay(1);
 
 	send_misc_i32(3, CHANGE_PCTL_VQ_KP_VALUE, 30);
+	HAL_Delay(1);
 	send_misc_i32(3, CHANGE_PCTL_VQ_KP_RADIX, 5);
+	HAL_Delay(1);
 	send_misc_i32(3, CHANGE_PCTL_VQ_KI_VALUE, 1);
+	HAL_Delay(1);
 	send_misc_i32(3, CHANGE_PCTL_VQ_KI_RADIX, 10);
+	HAL_Delay(1);
 	send_misc_i32(3, CHANGE_PCTL_VQ_OUTSAT, 2047);
-
+	HAL_Delay(1);
 
 	while (1)
 	{
@@ -155,9 +183,8 @@ int main(void)
 
 			can_tx_ts = tick;
 			//testval = sin_12b(wrap_2pi_12b(tick*10 + (PI_12B*i/3)))*4;
-			testval = 0;
-			send_motor_i32(idlist[ididx], testval);
-			ididx = (ididx + 1) % num_joints;
+			send_motor_i32(motors[tx_ididx].id, motors[tx_ididx].can_command);
+			tx_ididx = (tx_ididx + 1) % NUM_MOTORS;
 		}
 
 		if(HAL_FDCAN_GetRxFifoFillLevel(&hfdcan1, FDCAN_RX_FIFO0) != 0)
@@ -200,16 +227,6 @@ int main(void)
 
 		if(tick - led_ts > 100)
 		{
-			led_state[led_blink_idx] = (~led_state[led_blink_idx]) & 1;
-			led_blink_idx = (led_blink_idx + 1) % num_joints;
-//			for(int ididx = 0; ididx < 3; ididx++)
-//			{
-//				if(led_state[ididx] == 0)
-//					send_misc_u8(idlist[ididx], LED_OFF, 0);
-//				else
-//					send_misc_u8(idlist[ididx] , LED_ON, 0);
-//			}
-
 			HAL_GPIO_TogglePin(LED_GPIO_Port, LED_Pin);
 			led_ts = tick;	//led stays on for 10ms if there is can tx activity (or rx activity?)
 		}
