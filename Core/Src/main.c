@@ -125,7 +125,8 @@ int main(void)
 
 	HAL_Delay(1000);
 
-	uint16_t idlist[] = {3,2,1};
+	uint16_t idlist[] = {1,2,3};
+	int ididx = 0;
 	const int num_joints = sizeof(idlist)/sizeof(uint16_t);
 	uint8_t led_state[sizeof(idlist)/sizeof(uint16_t)] = {0};
 	int led_blink_idx = 0;
@@ -153,18 +154,17 @@ int main(void)
 			trigger_can_tx = 0;
 
 			can_tx_ts = tick;
-			for(int i = 0; i < num_joints; i++)
-			{
-				//testval = sin_12b(wrap_2pi_12b(tick*10 + (PI_12B*i/3)))*4;
-				testval = 0;
-				send_motor_i32(idlist[i], testval);
-			}
+			//testval = sin_12b(wrap_2pi_12b(tick*10 + (PI_12B*i/3)))*4;
+			testval = 0;
+			send_motor_i32(idlist[ididx], testval);
+			ididx = (ididx + 1) % num_joints;
 		}
 
 		if(HAL_FDCAN_GetRxFifoFillLevel(&hfdcan1, FDCAN_RX_FIFO0) != 0)
 		{
 			HAL_FDCAN_GetRxMessage(&hfdcan1, FDCAN_RX_FIFO0, &can_rx_header, can_rx_data.d);
 			{
+				trigger_can_tx = 1;	//if we received a reply before our pending timeout, trigger another tx  before the 10ms timeout!
 				uint16_t id = can_rx_header.Identifier;//note, test this, should retrieve correct ID
 				motors[id-1].position = can_rx_data.i32[0];
 				motors[id-1].current = can_rx_data.i16[2];
