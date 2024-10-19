@@ -11,7 +11,7 @@
 #include "stm32g4xx_it.h"
 
 
-#define UART_IT_BUF_SIZE 32		//fw generically capable of handling 24 bytes incoming.
+#define UART_IT_BUF_SIZE 64		//fw generically capable of handling 24 bytes incoming.
 
 /*The following structure is used to implement
  * the baremetal interrupt handler. The actual

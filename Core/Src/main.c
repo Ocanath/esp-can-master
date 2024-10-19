@@ -45,6 +45,14 @@ void ppp_rx_cplt_callback(uart_it_t * h)
 		uint16_t checksum = fletchers_checksum16((uint16_t*)pbu16, i16_size - 1);	//checksum is always the last two bytes
 		if(checksum == pbu16[i16_size-1])		//compare calculated against received
 		{
+			/*
+			 * 0: mode
+			 * 1: pad
+			 * 2-3-4-5: w1
+			 * 6-7-8-9: w2
+			 * 10-11-12-13: w3
+			 * 14-15: chk
+			 */
 			gl_crq.mode = pbu8[0];
 			for(int i = 0; i < NUM_MOTORS; i++)
 			{
