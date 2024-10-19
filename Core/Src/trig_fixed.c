@@ -48,6 +48,7 @@ static const int32_t tc5_14b = -3*16384;    //2^14, with extra scaling factor ap
 */
 int32_t sin_12b(int32_t theta)
 {
+	theta = wrap_2pi_12b(theta);
     //Preprocess theta to force it in the range 0-pi/2 for poly calculation
     uint8_t is_neg = 0;
     if(theta == 0)
@@ -318,6 +319,15 @@ int32_t wrap_2pi_14b(int32_t in)
 }
 
 
+int32_t wrap_2pi_fixed(int32_t in, int32_t two_pi_fixed)
+{
+	int32_t pi_fixed = two_pi_fixed / 2;
+    int32_t result = ((in + pi_fixed) % two_pi_fixed) - pi_fixed;
+    if (in < -pi_fixed) //if( (in + pi_fixed) < 0 )
+        return two_pi_fixed + result;
+    else
+        return result;
+}
 
 /*64 bit analogue which we need for unwrap_64*/
 int64_t wrap_2pi12b_64(int64_t in)

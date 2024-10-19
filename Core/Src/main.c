@@ -17,6 +17,8 @@ typedef union {
 	float f32;	//sizeof(float) == sizeof(uint32_t) on this system
 }u32_fmt_t;
 
+enum {POSITION = 0xFA, TURBO = 0xFB, STEALTH = 0xFC};
+
 void m_uart2_rx_cplt_callback(uart_it_t * h)
 {
 
@@ -25,15 +27,12 @@ void m_uart2_rx_cplt_callback(uart_it_t * h)
 
 typedef struct uart_can_request_t
 {
-	uint8_t type;
-	uint8_t len;
-	int16_t can_tx_id;
-	uint8_t can_tx_buf[8];
-
+	uint8_t mode;
+	int32_t commands[NUM_MOTORS];
 }uart_can_request_t;
 uart_can_request_t gl_crq = {0};
 
-static uint8_t trigger_can_tx = 0;
+static uint8_t uart_buf_received = 0;
 
 void ppp_rx_cplt_callback(uart_it_t * h)
 {
@@ -41,18 +40,17 @@ void ppp_rx_cplt_callback(uart_it_t * h)
 	{
 		const uint8_t * pbu8 = (uint8_t*)(&m_huart2.ppp_unstuff_buf[0]);	//alias for this so it's easier to type
 		const uint16_t * pbu16 = (uint16_t*)(&m_huart2.ppp_unstuff_buf[0]);	//alias for this so it's easier to type
-		int i16_size = h->ppp_unstuffed_size / sizeof(int16_t);	//even, so this is fine
+		const int32_t * pbi32 = (int32_t * )(&m_huart2.ppp_unstuff_buf[2]);	//alias for section of payload corresponding to 32bit target values
+		int i16_size = h->ppp_unstuffed_size / sizeof(int16_t);	//must always be even, so this is fine
 		uint16_t checksum = fletchers_checksum16((uint16_t*)pbu16, i16_size - 1);	//checksum is always the last two bytes
 		if(checksum == pbu16[i16_size-1])		//compare calculated against received
 		{
-			gl_crq.type = pbu8[0];
-			gl_crq.len = pbu8[1];
-			gl_crq.can_tx_id = pbu16[1];
-			for(int i = 0; (i < gl_crq.len) && (i < sizeof(gl_crq.can_tx_buf)); i++)
+			gl_crq.mode = pbu8[0];
+			for(int i = 0; i < NUM_MOTORS; i++)
 			{
-				gl_crq.can_tx_buf[i] = pbu8[i+4];	//start at 4, go until you hit either the requested length or run out of buffer to write to
+				gl_crq.commands[i] = pbi32[i];
 			}
-			trigger_can_tx = 1;
+			uart_buf_received = 1;
 		}
 	}
 }
@@ -86,7 +84,7 @@ void send_misc_i32(uint16_t id, uint8_t header, int32_t val)
 	can_tx_header.Identifier = (0x7FF - id);	//0x7FF for misc commands
 	can_tx_header.DataLength = (8 & 0xF) << 16;	//note: len value above 8 will index into higher values. i.e. F corresponds to 64bytes
 	HAL_FDCAN_AddMessageToTxFifoQ(&hfdcan1, &can_tx_header, can_tx_data.d);
-	while((hfdcan1.Instance->TXFQS & FDCAN_TXFQS_TFQF) != 0U);	//convert to timeout with error
+	HAL_Delay(1);	//delay to let the message go out
 }
 
 void send_motor_i32(uint16_t id, int32_t val)
@@ -133,6 +131,9 @@ static m_motor_t motors[NUM_MOTORS] =
 			}
 };
 
+
+//setport 6701
+
 int main(void)
 {
  	HAL_Init();
@@ -152,31 +153,82 @@ int main(void)
 
 	int tx_ididx = 0;
 	send_misc_u8(3, SET_PCTL_VQ_MODE, 0);
-	HAL_Delay(1);
 	send_misc_u8(2, SET_PCTL_VQ_MODE, 0);
-	HAL_Delay(1);
 	send_misc_u8(1, SET_PCTL_VQ_MODE, 0);
-	HAL_Delay(1);
 
 	send_misc_i32(3, CHANGE_PCTL_VQ_KP_VALUE, 30);
-	HAL_Delay(1);
 	send_misc_i32(3, CHANGE_PCTL_VQ_KP_RADIX, 5);
-	HAL_Delay(1);
 	send_misc_i32(3, CHANGE_PCTL_VQ_KI_VALUE, 1);
-	HAL_Delay(1);
 	send_misc_i32(3, CHANGE_PCTL_VQ_KI_RADIX, 10);
-	HAL_Delay(1);
-	send_misc_i32(3, CHANGE_PCTL_VQ_OUTSAT, 2047);
-	HAL_Delay(1);
+	send_misc_i32(3, CHANGE_PCTL_VQ_OUTSAT, 3000);
+
+	send_misc_i32(motors[0].id, CHANGE_PCTL_VQ_OUTSAT, 3546);
+	send_misc_i32(2, CHANGE_PCTL_VQ_OUTSAT, 3546);
+
+	uint8_t trigger_can_tx = 0;
+	int32_t sindemoamp[] = {100,100,2};
+
+	uint8_t mode = POSITION;
 
 	while (1)
 	{
 		uint32_t tick = HAL_GetTick();
-		if(trigger_can_tx)
+
+
+
+		/*Handle comms*/
+		if(uart_buf_received != 0)
 		{
-//			can_payload_t * pb_cpld = (can_payload_t*)(&gl_crq.can_tx_buf[0]);
+			uart_buf_received = 0;
+
+			//mode with 1 byte of padding, position, checksum
+			uint8_t prestuff[1*sizeof(int16_t) + sizeof(int32_t)*3 + 1*sizeof(int16_t)] = {0};	//length is currently fixed, but in future, if we continue with FD can, we will need to extend this.
+			/*
+			 * Byte 0: mode
+			 * Byte 1: pad (zeo)
+			 * Byte 2,3,4,5: motor data 32
+			 * Byte 6,7,8,9: motor data 32
+			 * Byte 10,11,12,13: motor data 32
+			 * Bytes 14,15: checksum16
+			 * */
+			prestuff[0] = mode;
+			uint16_t* pbu16 = (uint16_t*)&prestuff[0];
+			int32_t * pbi32 = (int32_t*)(&prestuff[2]);
+			if(mode == POSITION || mode == STEALTH)
+			{
+				pbi32[0] = motors[0].position;
+				pbi32[1] = motors[1].position;
+				pbi32[2] = motors[2].position;
+			}
+			else if(mode == TURBO)
+			{
+				pbi32[0] = motors[0].velocity;
+				pbi32[1] = motors[1].velocity;
+				pbi32[2] = motors[2].velocity;
+			}
+			pbu16[7] = fletchers_checksum16(pbu16, 7);
+
+			int len = PPP_stuff(prestuff, sizeof(prestuff), firststuff, sizeof(firststuff));
+			len = PPP_stuff(firststuff, len, gl_ppp_stuff_buf, sizeof(gl_ppp_stuff_buf));	//double stuff the buffer! AAAH
+			m_uart_tx_start(&m_huart2, gl_ppp_stuff_buf, len);
 		}
 
+
+
+
+
+		/*EZ debug*/
+		for(int i = 0; i < NUM_MOTORS; i++)
+		{
+			motors[i].can_command = sin_12b(HAL_GetTick()*10+i*PI_12B)*sindemoamp[i];
+		}
+		motors[0].can_command = HAL_GetTick()*100;
+		motors[1].can_command = -HAL_GetTick()*100;
+
+
+
+
+		/*in-loop receive and transmit*/
 		if((tick - can_tx_ts) > 10 || trigger_can_tx != 0)	//TODO: increase bandwidth by adding trigger for TX when we get a can RX
 		{
 			trigger_can_tx = 0;
@@ -186,7 +238,6 @@ int main(void)
 			send_motor_i32(motors[tx_ididx].id, motors[tx_ididx].can_command);
 			tx_ididx = (tx_ididx + 1) % NUM_MOTORS;
 		}
-
 		if(HAL_FDCAN_GetRxFifoFillLevel(&hfdcan1, FDCAN_RX_FIFO0) != 0)
 		{
 			HAL_FDCAN_GetRxMessage(&hfdcan1, FDCAN_RX_FIFO0, &can_rx_header, can_rx_data.d);
@@ -196,35 +247,11 @@ int main(void)
 				motors[id-1].position = can_rx_data.i32[0];
 				motors[id-1].current = can_rx_data.i16[2];
 				motors[id-1].velocity = can_rx_data.i16[3];
-
-				uint8_t tx_pld[6] = {0};
-				/*
-				 * byte 0: msg format
-				 * byte 1: length
-				 * bytes 2-3: can identifier
-				 * bytes 4-11: can payload content
-				 * 	bytes 4,5,6,7/i32[1]: position
-				 *	bytes 8,9: current
-				 *	bytes 10,11: velocity
-				 * bytes 12-13: fletcher's checksum				 *
-				 **/
-				uint8_t prestuff[14] = {0};	//length is currently fixed, but in future, if we continue with FD can, we will need to extend this.
-				prestuff[0] = 0;
-				prestuff[1] = 8;
-				uint16_t* pb = (uint16_t*)&prestuff[0];
-				pb[1] = 2;	//id of remote can target
-				for(int i = 0; i < sizeof(tx_pld); i++)
-					prestuff[i+4] = tx_pld[i];
-				pb[6] = fletchers_checksum16(pb, 6);
-
-				int len = PPP_stuff(prestuff, sizeof(prestuff), firststuff, sizeof(firststuff));
-				len = PPP_stuff(firststuff, len, gl_ppp_stuff_buf, sizeof(gl_ppp_stuff_buf));	//double stuff the buffer! AAAH
-				m_uart_tx_start(&m_huart2, gl_ppp_stuff_buf, len);
 			}
 		}
 
 
-
+		/*LED blink*/
 		if(tick - led_ts > 100)
 		{
 			HAL_GPIO_TogglePin(LED_GPIO_Port, LED_Pin);
