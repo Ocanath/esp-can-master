@@ -103,6 +103,14 @@ void loop()
         udp.write((uint8_t*)gl_prefs.name,len);
         udp.endPacket();
       }
+	  cmp = cmd_match((const char *)udp_pkt_buf,"SPAM_ME");
+      if(cmp > 0)
+      {
+        int len = strlen(gl_prefs.name);
+        udp.beginPacket(udp.remoteIP(),udp.remotePort()+gl_prefs.reply_offset);
+        udp.write((uint8_t*)"WAZZAAAP",8);
+        udp.endPacket();
+      }
       
       Serial2.write(udp_pkt_buf,len);
       for(int i = 0; i < len; i++)
@@ -130,7 +138,7 @@ void loop()
           serial_pkt_sent = 1;
        }
     }
-
+	
     get_console_lines();
     if(gl_console_cmd.parsed == 0)
     {

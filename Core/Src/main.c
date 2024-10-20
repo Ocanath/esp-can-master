@@ -194,6 +194,7 @@ int main(void)
 			if( (tick - filterts) > 0)
 			{
 				filterts = tick;
+
 				for(int i = 0; i < NUM_MOTORS; i++)
 				{
 					float cmd_in = (float)gl_crq.commands[i];
@@ -202,7 +203,6 @@ int main(void)
 				}
 			}
 		}
-
 
 		/*Handle comms*/
 		if(uart_buf_received != 0)
