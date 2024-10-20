@@ -4,6 +4,8 @@
 #include "checksum.h"
 #include "FDCAN.h"
 #include "trig_fixed.h"
+#include "IIRsos.h"
+#include "m_mcpy.h"
 
 #define NUM_MOTORS 3
 
@@ -174,25 +176,38 @@ int main(void)
 	send_misc_i32(2, CHANGE_PCTL_VQ_OUTSAT, 3546);
 
 	uint8_t trigger_can_tx = 0;
+	uint32_t filterts = 0;
+	iirSOS upsampling_filter[NUM_MOTORS] = {0};
+	for(int i = 0; i < NUM_MOTORS; i++)
+	{
+		m_mcpy(&upsampling_filter[i], &gl_upsampling_filter, sizeof(iirSOS));
+	}
 
 	while (1)
 	{
 		uint32_t tick = HAL_GetTick();
 
 
+		/*Upsample the input signal:*/
+		if(gl_crq.mode == POSITION || gl_crq.mode == STEALTH)
+		{
+			motors[0].can_command = gl_crq.commands[0];
+			motors[1].can_command = gl_crq.commands[1];
+
+			if( (tick - filterts) > 0)
+			{
+				filterts = tick;
+				float cmd_in = (float)gl_crq.commands[2];
+				float cmd_out = sos_f(&upsampling_filter[2], cmd_in);
+				motors[2].can_command = (int32_t)cmd_out;
+			}
+		}
+
 
 		/*Handle comms*/
 		if(uart_buf_received != 0)
 		{
 			uart_buf_received = 0;
-
-			if(gl_crq.mode == POSITION || gl_crq.mode == STEALTH)
-			{
-				for(int i = 0; i < NUM_MOTORS; i++)
-				{
-					motors[i].can_command = gl_crq.commands[i];
-				}
-			}
 
 			//mode with 1 byte of padding, position, checksum
 			/*Blast out the motor data back to the person who asked us to move! client doesn't really need to parse it*/
