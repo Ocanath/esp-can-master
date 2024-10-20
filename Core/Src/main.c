@@ -191,15 +191,15 @@ int main(void)
 		/*Upsample the input signal:*/
 		if(gl_crq.mode == POSITION || gl_crq.mode == STEALTH)
 		{
-			motors[0].can_command = gl_crq.commands[0];
-			motors[1].can_command = gl_crq.commands[1];
-
 			if( (tick - filterts) > 0)
 			{
 				filterts = tick;
-				float cmd_in = (float)gl_crq.commands[2];
-				float cmd_out = sos_f(&upsampling_filter[2], cmd_in);
-				motors[2].can_command = (int32_t)cmd_out;
+				for(int i = 0; i < NUM_MOTORS; i++)
+				{
+					float cmd_in = (float)gl_crq.commands[i];
+					float cmd_out = sos_f(&upsampling_filter[i], cmd_in);
+					motors[i].can_command = (int32_t)cmd_out;
+				}
 			}
 		}
 
