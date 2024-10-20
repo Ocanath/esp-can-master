@@ -174,9 +174,6 @@ int main(void)
 	send_misc_i32(2, CHANGE_PCTL_VQ_OUTSAT, 3546);
 
 	uint8_t trigger_can_tx = 0;
-	int32_t sindemoamp[] = {100,100,2};
-
-	uint8_t mode = POSITION;
 
 	while (1)
 	{
@@ -189,7 +186,16 @@ int main(void)
 		{
 			uart_buf_received = 0;
 
+			if(gl_crq.mode == POSITION || gl_crq.mode == STEALTH)
+			{
+				for(int i = 0; i < NUM_MOTORS; i++)
+				{
+					motors[i].can_command = gl_crq.commands[i];
+				}
+			}
+
 			//mode with 1 byte of padding, position, checksum
+			/*Blast out the motor data back to the person who asked us to move! client doesn't really need to parse it*/
 			uint8_t prestuff[1*sizeof(int16_t) + sizeof(int32_t)*3 + 1*sizeof(int16_t)] = {0};	//length is currently fixed, but in future, if we continue with FD can, we will need to extend this.
 			/*
 			 * Byte 0: mode
@@ -199,16 +205,16 @@ int main(void)
 			 * Byte 10,11,12,13: motor data 32
 			 * Bytes 14,15: checksum16
 			 * */
-			prestuff[0] = mode;
+			prestuff[0] = gl_crq.mode;
 			uint16_t* pbu16 = (uint16_t*)&prestuff[0];
 			int32_t * pbi32 = (int32_t*)(&prestuff[2]);
-			if(mode == POSITION || mode == STEALTH)
+			if(gl_crq.mode == POSITION || gl_crq.mode == STEALTH)
 			{
 				pbi32[0] = motors[0].position;
 				pbi32[1] = motors[1].position;
 				pbi32[2] = motors[2].position;
 			}
-			else if(mode == TURBO)
+			else if(gl_crq.mode == TURBO)
 			{
 				pbi32[0] = motors[0].velocity;
 				pbi32[1] = motors[1].velocity;
@@ -222,16 +228,6 @@ int main(void)
 		}
 
 
-
-
-
-		/*EZ debug*/
-		for(int i = 0; i < NUM_MOTORS; i++)
-		{
-			motors[i].can_command = sin_12b(HAL_GetTick()*10+i*PI_12B)*sindemoamp[i];
-		}
-		motors[0].can_command = HAL_GetTick()*100;
-		motors[1].can_command = -HAL_GetTick()*100;
 
 
 
