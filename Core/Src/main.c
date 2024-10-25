@@ -141,6 +141,34 @@ static m_motor_t motors[NUM_MOTORS] =
 			}
 };
 
+#define TWO_PI              	6.28318530718
+#define ONE_BY_TWO_PI 			0.1591549
+
+/*
+ * Helper Function to quickly perform floating point mod of two pi
+ */
+float fmod_2pi(float in)
+{
+	uint8_t aneg = 0;
+	float in_eval = in;
+	if(in < 0)
+	{
+		aneg = 1;
+		in_eval = -in;
+	}
+	float fv = (float)((int)(in_eval*ONE_BY_TWO_PI));
+	if(aneg == 1)
+		fv = (-fv)-1;
+	return in-TWO_PI*fv;
+}
+
+
+
+int32_t m1_velocitypos = 0;
+int32_t m2_velocitypos = 0;
+int32_t m1_velocity = 0;
+int32_t m2_velocity = 0;
+
 
 //setport 6701
 
@@ -183,10 +211,6 @@ int main(void)
 		m_mcpy(&upsampling_filter[i], &gl_upsampling_filter, sizeof(iirSOS));
 	}
 	uint32_t ptick = 0;
-	int32_t m1_velocitypos = 0;
-	int32_t m2_velocitypos = 0;
-	int32_t m1_velocity = 0;
-	int32_t m2_velocity = 0;
 	while (1)
 	{
 		uint32_t tick = HAL_GetTick();
@@ -194,11 +218,12 @@ int main(void)
 		//todo: swap out dt based on getTick with a microsecond timer instead.
 		if(tick - ptick > 0)
 		{
-			uint32_t dt = tick-ptick;
+			float dt = tick-ptick;
 			m1_velocitypos = wrap_2pi_14b(m1_velocitypos + dt * m1_velocity);
 			m2_velocitypos = wrap_2pi_14b(m2_velocitypos + dt * m2_velocity);
 			motors[0].can_command = m1_velocitypos;
 			motors[1].can_command = m2_velocitypos;
+			ptick = tick;
 		}
 
 		/*Upsample the input signal:*/
