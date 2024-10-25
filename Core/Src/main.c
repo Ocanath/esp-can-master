@@ -19,7 +19,7 @@ typedef union {
 	float f32;	//sizeof(float) == sizeof(uint32_t) on this system
 }u32_fmt_t;
 
-enum {POSITION = 0xFA, TURBO = 0xFB, STEALTH = 0xFC};
+enum {POSITION = 0xFA, TURBO = 0xFB, STEALTH = 0xFC, PCTL_VELOCITY = 0xFD};
 
 void m_uart2_rx_cplt_callback(uart_it_t * h)
 {
@@ -182,11 +182,24 @@ int main(void)
 	{
 		m_mcpy(&upsampling_filter[i], &gl_upsampling_filter, sizeof(iirSOS));
 	}
-
+	uint32_t ptick = 0;
+	int32_t m1_velocitypos = 0;
+	int32_t m2_velocitypos = 0;
+	int32_t m1_velocity = 0;
+	int32_t m2_velocity = 0;
 	while (1)
 	{
 		uint32_t tick = HAL_GetTick();
 
+		//todo: swap out dt based on getTick with a microsecond timer instead.
+		if(tick - ptick > 0)
+		{
+			uint32_t dt = tick-ptick;
+			m1_velocitypos = wrap_2pi_14b(m1_velocitypos + dt * m1_velocity);
+			m2_velocitypos = wrap_2pi_14b(m2_velocitypos + dt * m2_velocity);
+			motors[0].can_command = m1_velocitypos;
+			motors[1].can_command = m2_velocitypos;
+		}
 
 		/*Upsample the input signal:*/
 		if(gl_crq.mode == POSITION || gl_crq.mode == STEALTH)
@@ -194,13 +207,16 @@ int main(void)
 			if( (tick - filterts) > 0)
 			{
 				filterts = tick;
-
+				int32_t val_out[3] = {0};
 				for(int i = 0; i < NUM_MOTORS; i++)
 				{
 					float cmd_in = (float)gl_crq.commands[i];
 					float cmd_out = sos_f(&upsampling_filter[i], cmd_in);
-					motors[i].can_command = (int32_t)cmd_out;
+					val_out[i] = (int32_t)cmd_out;
 				}
+				m1_velocity = val_out[0];
+				m2_velocity = val_out[1];
+				motors[2].can_command = (int32_t)val_out[2];
 			}
 		}
 
