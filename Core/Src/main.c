@@ -243,10 +243,36 @@ int main(void)
 				m1_velocity = val_out[0];
 				m2_velocity = val_out[1];
 				//emergency lockout
-				if(tick - last_ppp_message_recieved_ts > 200)
+				int32_t time_since_last_ppp = (int32_t)(tick - last_ppp_message_recieved_ts);
+				if(time_since_last_ppp > 200)
 				{
-					m1_velocity = 0;
-					m2_velocity = 0;
+					time_since_last_ppp -= 200;
+					if(m1_velocity > 0)
+					{
+						m1_velocity = gl_crq.commands[0] - time_since_last_ppp;
+						if(m1_velocity < 0)
+							m1_velocity = 0;
+					}
+					else
+					{
+						m1_velocity = gl_crq.commands[0] + time_since_last_ppp;
+						if(m1_velocity > 0)
+							m1_velocity = 0;
+					}
+
+					if(m2_velocity > 0)
+					{
+						m2_velocity = gl_crq.commands[1] - time_since_last_ppp;
+						if(m2_velocity < 0)
+							m2_velocity = 0;
+					}
+					else
+					{
+						m2_velocity = gl_crq.commands[1] + time_since_last_ppp;
+						if(m2_velocity > 0)
+							m2_velocity = 0;
+					}
+
 				}
 				motors[2].can_command = (int32_t)val_out[2];
 			}
