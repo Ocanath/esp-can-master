@@ -35,6 +35,7 @@ typedef struct uart_can_request_t
 uart_can_request_t gl_crq = {0};
 
 static uint8_t uart_buf_received = 0;
+static uint32_t last_ppp_message_recieved_ts = 0;
 
 void ppp_rx_cplt_callback(uart_it_t * h)
 {
@@ -241,6 +242,12 @@ int main(void)
 				}
 				m1_velocity = val_out[0];
 				m2_velocity = val_out[1];
+				//emergency lockout
+				if(tick - last_ppp_message_recieved_ts > 200)
+				{
+					m1_velocity = 0;
+					m2_velocity = 0;
+				}
 				motors[2].can_command = (int32_t)val_out[2];
 			}
 		}
@@ -249,7 +256,7 @@ int main(void)
 		if(uart_buf_received != 0)
 		{
 			uart_buf_received = 0;
-
+			last_ppp_message_recieved_ts = tick;
 			//mode with 1 byte of padding, position, checksum
 			/*Blast out the motor data back to the person who asked us to move! client doesn't really need to parse it*/
 			uint8_t prestuff[1*sizeof(int16_t) + sizeof(int32_t)*3 + 1*sizeof(int16_t)] = {0};	//length is currently fixed, but in future, if we continue with FD can, we will need to extend this.
