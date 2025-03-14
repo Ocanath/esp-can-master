@@ -128,7 +128,7 @@ void loop()
       {
         match = 1;
 		Serial.println(WiFi.softAPIP());
-		Serial.println(WiFi.soft)		
+		printConnectedClients();
       }
       
       //////////////////////////////////////////////////////////////////////////////////////////////////////
