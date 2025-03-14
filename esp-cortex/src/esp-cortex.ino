@@ -7,6 +7,8 @@
 #include <ESPmDNS.h>
 #include <WiFiUdp.h>
 #include <ArduinoOTA.h>
+#include "esp_wifi.h"
+#include "tcpip_adapter.h"  // For tcpip_adapter functions
 
 
 #define NRST_PIN 2
@@ -24,31 +26,59 @@ enum {PERIOD_CONNECTED = 50, PERIOD_DISCONNECTED = 1000};
 WiFiUDP udp;
 
 
-void setup() {
-  // put your setup code here, to run once:
-  // pinMode(NRST_PIN, INPUT); //input for HI-Z
-  pinMode(NRST_PIN, OUTPUT);
-  digitalWrite(NRST_PIN, 1);
+IPAddress local_ip(192,168,33,1);
+IPAddress gateway(192,168,33,1);
+IPAddress subnet(255,255,255,0);
 
-  pinMode(BOOT_PIN, OUTPUT); //input for HI-Z
-  pinMode(LED_PIN, OUTPUT);
-  digitalWrite(LED_PIN, 1);
-  digitalWrite(BOOT_PIN, 0);
-  init_prefs(&preferences, &gl_prefs);
+void printConnectedClients() 
+{
+  // Create a structure to hold the list of connected stations (by MAC address)
+  wifi_sta_list_t staList;
+  // Structure to hold the client info including IP addresses
+  tcpip_adapter_sta_list_t adapterList;
 
-  Serial.begin(2000000);  //this can stay 2mbps. WHICH IS CRAZY omg
-  Serial2.begin(2000000, SERIAL_8N1, 16, 17);  //once you have a working system, try pushing this way higher (2MBPS is supported by ESP32!!)
+  // Get the list of connected stations (their MAC addresses)
+  esp_wifi_ap_get_sta_list(&staList);
 
-  int connected = 0;
-  Serial.printf("\r\n\r\n Trying \'%s\' \'%s\'\r\n",gl_prefs.ssid, gl_prefs.password);
-  /*Begin wifi connection*/
-  WiFi.mode(WIFI_STA);  
-  WiFi.begin((const char *)gl_prefs.ssid, (const char *)gl_prefs.password);
-  //connected = WiFi.waitForConnectResult();
-  if (connected != WL_CONNECTED) {
-    Serial.printf("Connection to network %s failed for an unknown reason\r\n", (const char *)gl_prefs.ssid);
+  // Get the IP addresses for the connected stations
+  tcpip_adapter_get_sta_list(&staList, &adapterList);
+
+  Serial.print("Number of connected clients: ");
+  Serial.println(adapterList.num);
+
+  // Loop through each connected client and print its IP address
+  for (int i = 0; i < adapterList.num; i++) {
+    tcpip_adapter_sta_info_t station = adapterList.sta[i];
+    Serial.print("Client ");
+    Serial.print(i + 1);
+    Serial.print(" - IP Address: ");
+    Serial.println(ip4addr_ntoa((const ip4_addr_t *)&station.ip));
   }
+}
 
+void setup() {
+	// put your setup code here, to run once:
+	// pinMode(NRST_PIN, INPUT); //input for HI-Z
+	pinMode(NRST_PIN, OUTPUT);
+	digitalWrite(NRST_PIN, 1);
+
+	pinMode(BOOT_PIN, OUTPUT); //input for HI-Z
+	pinMode(LED_PIN, OUTPUT);
+	digitalWrite(LED_PIN, 1);
+	digitalWrite(BOOT_PIN, 0);
+	init_prefs(&preferences, &gl_prefs);
+
+	Serial.begin(2000000);  //this can stay 2mbps. WHICH IS CRAZY omg
+//   Serial2.begin(2000000, SERIAL_8N1, 16, 17);  //once you have a working system, try pushing this way higher (2MBPS is supported by ESP32!!)
+
+	/*Begin wifi connection*/
+	WiFi.softAPConfig(local_ip, gateway, subnet);
+	WiFi.softAP(gl_prefs.ssid, gl_prefs.password);
+	Serial.println("Access Point Started");
+	Serial.print("AP IP address: ");
+  	Serial.println(WiFi.softAPIP());
+//   WiFi.mode(WIFI_AP);  
+//   WiFi.begin((const char *)gl_prefs.ssid, (const char *)gl_prefs.password);
 }
 
 
@@ -73,10 +103,6 @@ uint8_t gl_pld_buffer[PAYLOAD_BUFFER_SIZE] = {0};
 
 void loop() 
 {
-
-  IPAddress server_address((uint32_t)IPV4_ADDR_ANY); //note: may want to change to our local IP, to support multiple devices on the network
-  udp.begin(server_address, gl_prefs.port);
-
   // put your main code here, to run repeatedly:
   uint32_t led_ts = 0;
   uint8_t led_state = 1;
@@ -88,56 +114,6 @@ void loop()
   while(1)
   {
     uint32_t ts = millis();
-
-    int len = udp.parsePacket();
-    if(len != 0)
-    {
-      int len = udp.read(udp_pkt_buf,255);
-      
-      int cmp = -1;
-      cmp = cmd_match((const char *)udp_pkt_buf,"WHO_GOES_THERE");
-      if(cmp > 0)
-      {
-        int len = strlen(gl_prefs.name);
-        udp.beginPacket(udp.remoteIP(),udp.remotePort()+gl_prefs.reply_offset);
-        udp.write((uint8_t*)gl_prefs.name,len);
-        udp.endPacket();
-      }
-	  cmp = cmd_match((const char *)udp_pkt_buf,"SPAM_ME");
-      if(cmp > 0)
-      {
-        int len = strlen(gl_prefs.name);
-        udp.beginPacket(udp.remoteIP(),udp.remotePort()+gl_prefs.reply_offset);
-        udp.write((uint8_t*)"WAZZAAAP",8);
-        udp.endPacket();
-      }
-      
-      Serial2.write(udp_pkt_buf,len);
-      for(int i = 0; i < len; i++)
-        udp_pkt_buf[i] = 0;
-    }
-
-    uint8_t serial_pkt_sent = 0;
-    while(Serial2.available())
-    {
-       uint8_t new_byte = Serial2.read();
-       int pld_len = parse_PPP_stream(new_byte, gl_pld_buffer, PAYLOAD_BUFFER_SIZE, gl_unstuffing_buffer, UNSTUFFING_BUFFER_SIZE, &ppp_stuffing_bidx);
-       if(pld_len != 0)
-       {
-          if(gl_prefs.en_fixed_target == 0)
-          {
-            udp.beginPacket(udp.remoteIP(), udp.remotePort()+gl_prefs.reply_offset);
-          }
-          else
-          {
-            IPAddress remote_ip(gl_prefs.remote_target_ip);
-            udp.beginPacket(remote_ip, gl_prefs.port+gl_prefs.reply_offset);
-          }
-          udp.write((uint8_t*)gl_pld_buffer, pld_len);
-          udp.endPacket();      
-          serial_pkt_sent = 1;
-       }
-    }
 	
     get_console_lines();
     if(gl_console_cmd.parsed == 0)
@@ -151,26 +127,8 @@ void loop()
       if(cmp == 0)
       {
         match = 1;
-        if(WiFi.status() == WL_CONNECTED)
-        {
-          Serial.printf("Connected to: %s\r\n", gl_prefs.ssid);
-        }
-        else
-        {
-          Serial.printf("Not connected to: %s\r\n", gl_prefs.ssid);
-        }
-        Serial.printf("UDP server on port: %d\r\n", gl_prefs.port);
-        Serial.printf("Server Response Offset: %d\r\n", gl_prefs.reply_offset);
-        Serial.printf("IP address is: %s\r\n", WiFi.localIP().toString().c_str());
-		
-      }
-
-      //////////////////////////////////////////////////////////////////////////////////////////////////////
-      cmp = cmd_match((const char *)gl_console_cmd.buf,"udpconfig\r");
-      if(cmp > 0)
-      {
-        match = 1;
-        Serial.printf("UDP server on port: %d\r\n", gl_prefs.port);
+		Serial.println(WiFi.softAPIP());
+		Serial.println(WiFi.soft)		
       }
       
       //////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -215,57 +173,6 @@ void loop()
         Serial.printf("Changing device name to: %s\r\n", gl_prefs.name);
         save = 1;
       }
-      //////////////////////////////////////////////////////////////////////////////////////////////////////
-      cmp = cmd_match((const char *)gl_console_cmd.buf,"settargetip ");
-      if(cmp > 0)
-      {
-        match = 1;
-        const char * arg = (const char *)(&gl_console_cmd.buf[cmp]);
-        char copy[15] = {0};
-        Serial.printf("Raw str arg: ");
-        for(int i = 0; arg[i] != 0 && arg[i] != '\r' && arg[i] != '\n'; i++)
-        {
-          copy[i] = arg[i];
-          Serial.printf("%0.2X",arg[i]);
-        }
-        Serial.printf(": %s\r\n", copy);
-        IPAddress addr;
-        if(addr.fromString((const char *)copy) == true)
-          Serial.printf("Parsed IP address successfully\r\n");
-        else
-          Serial.printf("Invalid IP string entered\r\n");
-        gl_prefs.remote_target_ip = (uint32_t)addr;
-        Serial.printf("%X\r\n",gl_prefs.remote_target_ip);
-        IPAddress parseconfirm(gl_prefs.remote_target_ip);
-        Serial.printf("Target IP: %s\r\n", parseconfirm.toString().c_str());
-        save = 1;
-      }
-      //////////////////////////////////////////////////////////////////////////////////////////////////////
-      /*
-        Usage:
-          fixedtarget enable
-          fixedtarget disable
-       */
-      cmp = cmd_match((const char *)gl_console_cmd.buf,"fixedtarget ");
-      if(cmp > 0)
-      {
-        match = 1;
-        const char * arg = (const char *)(&gl_console_cmd.buf[cmp]);
-        int argcmp = cmd_match( arg, "enable");
-        if(argcmp > 0)
-        {
-          gl_prefs.en_fixed_target = 1;
-          IPAddress parseconfirm(gl_prefs.remote_target_ip);
-          Serial.printf("Enabling Fixed Target: %s\r\n", parseconfirm.toString().c_str());
-        }
-        argcmp = cmd_match( arg, "disable");
-        if(argcmp > 0)
-        {
-          gl_prefs.en_fixed_target = 0;
-          Serial.printf("Disabling Fixed Target\r\n");
-        }
-        save = 1;
-      }
 
       //////////////////////////////////////////////////////////////////////////////////////////////////////
       cmp = cmd_match((const char *)gl_console_cmd.buf,"setpwd ");
@@ -288,33 +195,6 @@ void loop()
         Serial.printf("Changing pwd to: %s\r\n",gl_prefs.password);
         save = 1;
       }
-
-      //////////////////////////////////////////////////////////////////////////////////////////////////////
-      cmp = cmd_match((const char *)gl_console_cmd.buf,"setport ");
-      if(cmp > 0)
-      {
-        match = 1;
-        const char * arg = (const char *)(&gl_console_cmd.buf[cmp]);
-        char * tmp;
-        int port = strtol(arg, &tmp, 10);
-        Serial.printf("Changing port to: %d\r\n",port);
-        /*Set the port*/
-        gl_prefs.port = port;
-        save = 1;
-      }
-	  
-      //////////////////////////////////////////////////////////////////////////////////////////////////////
-      cmp = cmd_match((const char *)gl_console_cmd.buf,"setTXoff ");
-      if(cmp > 0)
-      {
-        match = 1;
-    		const char * arg = (const char *)(&gl_console_cmd.buf[cmp]);
-        char * tmp;
-        int offset = strtol(arg, &tmp, 10);
-		    Serial.printf("Setting port offset to: %d\r\n",offset);
-    		gl_prefs.reply_offset = offset;
-		    save = 1;
-	    }	  
 
       //////////////////////////////////////////////////////////////////////////////////////////////////////
       cmp = cmd_match((const char *)gl_console_cmd.buf,"readcred");
@@ -353,27 +233,12 @@ void loop()
       }
 
       //////////////////////////////////////////////////////////////////////////////////////////////////////
-      cmp = cmd_match((const char *)gl_console_cmd.buf,"reconnect\r");
-      if(cmp > 0)
-      {
-        match = 1;
-        Serial.printf("restarting wifi connection...\r\n");
-        /*Try to connect using modified ssid and password. for convenience, as a restart will fulfil the same functionality*/
-        WiFi.disconnect();
-        WiFi.begin((const char *)gl_prefs.ssid,(const char *)gl_prefs.password);
-        udp.begin(server_address, gl_prefs.port);
-      }
-
-      //////////////////////////////////////////////////////////////////////////////////////////////////////
       cmp = cmd_match((const char *)gl_console_cmd.buf,"restart\r");
       if(cmp > 0)
       {
         Serial.printf("restarting chip...\r\n");
         ESP.restart();
       }
-
-
-
 
       /********************************Parsing over, cleanup*************************************/
       if(match == 0)
@@ -403,21 +268,11 @@ void loop()
       blink_per = PERIOD_CONNECTED;
     }
 
-
     if(ts - led_ts > blink_per)
     {
       led_ts = ts;
       digitalWrite(LED_PIN, led_state);
       led_state = ~led_state & 1;
-      if(WiFi.status() != WL_CONNECTED)
-      {
-        //WiFi.reconnect();
-        WiFi.disconnect();
-        WiFi.begin((const char *)gl_prefs.ssid,(const char *)gl_prefs.password);
-        udp.begin(server_address, gl_prefs.port);
-
-      }
-
     }
   }
 }
