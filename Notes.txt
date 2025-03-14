@@ -1,0 +1,4 @@
+-Just ran latency test with ESP32 as AP, with PC and robot car connected to that AP.
+The windows PC also had ethernet cable plugged in to separate network (hardwired). 
+
+Control latency was pretty dismal, like a full second or two lag.

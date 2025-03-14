@@ -107,7 +107,7 @@ void loop()
   uint32_t led_ts = 0;
   uint8_t led_state = 1;
   uint8_t stm32_enabled = 0;
-  uint32_t blink_per = PERIOD_DISCONNECTED;
+  int32_t blink_per = PERIOD_DISCONNECTED;
   uint8_t udp_pkt_buf[256] = {0};
   int ppp_stuffing_bidx = 0;
 
@@ -259,20 +259,19 @@ void loop()
     }
 
 
-    if(WiFi.status() != WL_CONNECTED)
-    {
-      blink_per = PERIOD_DISCONNECTED;
-    }
-    else
-    {
-      blink_per = PERIOD_CONNECTED;
-    }
+	
 
-    if(ts - led_ts > blink_per)
+    if(ts - led_ts > (uint32_t)blink_per)
     {
-      led_ts = ts;
-      digitalWrite(LED_PIN, led_state);
-      led_state = ~led_state & 1;
+		blink_per = PERIOD_DISCONNECTED - WiFi.softAPgetStationNum()*500;
+		if(blink_per < 50)
+			blink_per = 50;
+		if(blink_per > PERIOD_DISCONNECTED)
+			blink_per = PERIOD_DISCONNECTED;
+
+		led_ts = ts;
+		digitalWrite(LED_PIN, led_state);
+		led_state = ~led_state & 1;
     }
   }
 }
