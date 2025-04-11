@@ -1,5 +1,0 @@
-C:/Users/ocanath/OcanathProj/workspace-ocanath/esp-can-master/build-test/CMakeFiles/Unity.dir
-C:/Users/ocanath/OcanathProj/workspace-ocanath/esp-can-master/build-test/CMakeFiles/sauron-eye-closedform-ik.dir
-C:/Users/ocanath/OcanathProj/workspace-ocanath/esp-can-master/build-test/CMakeFiles/test_runner.dir
-C:/Users/ocanath/OcanathProj/workspace-ocanath/esp-can-master/build-test/CMakeFiles/ALL_BUILD.dir
-C:/Users/ocanath/OcanathProj/workspace-ocanath/esp-can-master/build-test/CMakeFiles/ZERO_CHECK.dir

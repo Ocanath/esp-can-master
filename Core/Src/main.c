@@ -6,6 +6,7 @@
 #include "trig_fixed.h"
 #include "IIRsos.h"
 #include "m_mcpy.h"
+#include "sin-math.h"
 
 #define NUM_MOTORS 2
 
@@ -136,28 +137,6 @@ static m_motor_t motors[NUM_MOTORS] =
 					.led_state = 1
 			}
 };
-
-#define TWO_PI              	6.28318530718
-#define ONE_BY_TWO_PI 			0.1591549
-
-/*
- * Helper Function to quickly perform floating point mod of two pi
- */
-float fmod_2pi(float in)
-{
-	uint8_t aneg = 0;
-	float in_eval = in;
-	if(in < 0)
-	{
-		aneg = 1;
-		in_eval = -in;
-	}
-	float fv = (float)((int)(in_eval*ONE_BY_TWO_PI));
-	if(aneg == 1)
-		fv = (-fv)-1;
-	return in-TWO_PI*fv;
-}
-
 
 
 int32_t m1_velocitypos = 0;

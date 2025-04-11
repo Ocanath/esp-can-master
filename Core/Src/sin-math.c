@@ -89,6 +89,23 @@ float atan2_approx(float sinVal, float cosVal)
 }
 
 
+/*
+ * Helper Function to quickly perform floating point mod of two pi
+ */
+float fmod_2pi(float in)
+{
+	uint8_t aneg = 0;
+	float in_eval = in;
+	if(in < 0)
+	{
+		aneg = 1;
+		in_eval = -in;
+	}
+	float fv = (float)((int)(in_eval*ONE_BY_TWO_PI));
+	if(aneg == 1)
+		fv = (-fv)-1;
+	return in-TWO_PI*fv;
+}
 
 float wrap_2pi(float in)
 {

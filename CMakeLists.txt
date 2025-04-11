@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.10)
-project(IKTests C)
+project(esp-can-cortex-tests C)
 
 # Use C99
 set(CMAKE_C_STANDARD 99)
@@ -10,7 +10,7 @@ set(CMAKE_C_EXTENSIONS OFF)
 # 1) Unity
 #------------------------------------------------------------------------------
 add_library(Unity STATIC
-    vendor/unity/src/Unity.c
+    vendor/unity/src/unity.c
 )
 target_include_directories(Unity PUBLIC
     vendor/unity/src
@@ -21,6 +21,7 @@ target_include_directories(Unity PUBLIC
 #------------------------------------------------------------------------------
 add_library(sauron-eye-closedform-ik STATIC
     Core/Src/sauron-eye-closedform-ik.c
+	Core/Src/sin-math.c
 )
 target_include_directories(sauron-eye-closedform-ik PUBLIC
     Core/Inc/
