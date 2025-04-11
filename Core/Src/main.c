@@ -7,7 +7,7 @@
 #include "IIRsos.h"
 #include "m_mcpy.h"
 
-#define NUM_MOTORS 3
+#define NUM_MOTORS 2
 
 typedef union {
 	int8_t d8[sizeof(uint32_t)/sizeof(int8_t)];
@@ -126,18 +126,13 @@ typedef struct m_motor_t
 static m_motor_t motors[NUM_MOTORS] =
 {
 			{
-					.id = 1,
+					.id = 7,
 					.control_mode = SET_SINUSOIDAL_MODE,
 					.led_state = 1
 			},
 			{
-					.id = 2,
-					.control_mode = SET_PCTL_VQ_MODE,
-					.led_state = 1
-			},
-			{
-					.id = 3,
-					.control_mode = SET_PCTL_VQ_MODE,
+					.id = 8,
+					.control_mode = SET_SINUSOIDAL_MODE,
 					.led_state = 1
 			}
 };
@@ -170,6 +165,8 @@ int32_t m2_velocitypos = 0;
 int32_t m1_velocity = 0;
 int32_t m2_velocity = 0;
 
+int32_t m0_targ14 = 0;
+int32_t m1_targ14 = 0;
 
 //setport 6701
 
@@ -191,92 +188,40 @@ int main(void)
 	HAL_Delay(1000);
 
 	int tx_ididx = 0;
-	send_misc_u8(3, SET_PCTL_VQ_MODE, 0);
-	send_misc_u8(2, SET_PCTL_VQ_MODE, 0);
-	send_misc_u8(1, SET_PCTL_VQ_MODE, 0);
+	int32_t m0_offset = -990;
+	int32_t m1_offset = 16921;
+	send_motor_i32(motors[0].id, m0_offset);
+	send_motor_i32(motors[1].id, m1_offset);
 
-	send_misc_i32(3, CHANGE_PCTL_VQ_KP_VALUE, 30);
-	send_misc_i32(3, CHANGE_PCTL_VQ_KP_RADIX, 5);
-	send_misc_i32(3, CHANGE_PCTL_VQ_KI_VALUE, 1);
-	send_misc_i32(3, CHANGE_PCTL_VQ_KI_RADIX, 10);
-	send_misc_i32(3, CHANGE_PCTL_VQ_OUTSAT, 3000);
 
-	send_misc_i32(motors[0].id, CHANGE_PCTL_VQ_OUTSAT, 3546);
-	send_misc_i32(2, CHANGE_PCTL_VQ_OUTSAT, 3546);
+	for(int i = 0; i < NUM_MOTORS; i++)
+	{
+		send_misc_i32(motors[i].id, CHANGE_PCTL_VQ_OUTSAT, 3546);
+//		send_misc_u8(motors[i].id, SET_PCTL_VQ_MODE, 0);	//load offsetted target (0) , then enable pctl_vq. also potentially change pctl gains
+	}
+
+//	send_misc_i32(3, CHANGE_PCTL_VQ_KP_VALUE, 30);
+//	send_misc_i32(3, CHANGE_PCTL_VQ_KP_RADIX, 5);
+//	send_misc_i32(3, CHANGE_PCTL_VQ_KI_VALUE, 1);
+//	send_misc_i32(3, CHANGE_PCTL_VQ_KI_RADIX, 10);
+//	send_misc_i32(3, CHANGE_PCTL_VQ_OUTSAT, 3000);
+//
+//	send_misc_i32(motors[0].id, CHANGE_PCTL_VQ_OUTSAT, 3546);
+//	send_misc_i32(2, CHANGE_PCTL_VQ_OUTSAT, 3546);
 
 	uint8_t trigger_can_tx = 0;
-	uint32_t filterts = 0;
+
 	iirSOS upsampling_filter[NUM_MOTORS] = {0};
 	for(int i = 0; i < NUM_MOTORS; i++)
 	{
 		m_mcpy(&upsampling_filter[i], &gl_upsampling_filter, sizeof(iirSOS));
 	}
-	uint32_t ptick = 0;
 	while (1)
 	{
 		uint32_t tick = HAL_GetTick();
 
-		//todo: swap out dt based on getTick with a microsecond timer instead.
-		if(tick - ptick > 0)
-		{
-			float dt = tick-ptick;
-			m1_velocitypos = wrap_2pi_14b(m1_velocitypos + dt * m1_velocity);
-			m2_velocitypos = wrap_2pi_14b(m2_velocitypos + dt * m2_velocity);
-			motors[0].can_command = m1_velocitypos;
-			motors[1].can_command = m2_velocitypos;
-			ptick = tick;
-		}
-
-		/*Upsample the input signal:*/
-		if(gl_crq.mode == POSITION || gl_crq.mode == STEALTH)
-		{
-			if( (tick - filterts) > 0)
-			{
-				filterts = tick;
-				int32_t val_out[3] = {0};
-				for(int i = 0; i < NUM_MOTORS; i++)
-				{
-					float cmd_in = (float)gl_crq.commands[i];
-					float cmd_out = sos_f(&upsampling_filter[i], cmd_in);
-					val_out[i] = (int32_t)cmd_out;
-				}
-				m1_velocity = val_out[0];
-				m2_velocity = val_out[1];
-				//emergency lockout
-				int32_t time_since_last_ppp = (int32_t)(tick - last_ppp_message_recieved_ts);
-				if(time_since_last_ppp > 200)
-				{
-					time_since_last_ppp -= 200;
-					if(m1_velocity > 0)
-					{
-						m1_velocity = gl_crq.commands[0] - time_since_last_ppp;
-						if(m1_velocity < 0)
-							m1_velocity = 0;
-					}
-					else
-					{
-						m1_velocity = gl_crq.commands[0] + time_since_last_ppp;
-						if(m1_velocity > 0)
-							m1_velocity = 0;
-					}
-
-					if(m2_velocity > 0)
-					{
-						m2_velocity = gl_crq.commands[1] - time_since_last_ppp;
-						if(m2_velocity < 0)
-							m2_velocity = 0;
-					}
-					else
-					{
-						m2_velocity = gl_crq.commands[1] + time_since_last_ppp;
-						if(m2_velocity > 0)
-							m2_velocity = 0;
-					}
-
-				}
-				motors[2].can_command = (int32_t)val_out[2];
-			}
-		}
+		motors[0].can_command = wrap_2pi_14b(m0_targ14 + m0_offset);
+		motors[1].can_command = wrap_2pi_14b(m1_targ14 + m1_offset);
 
 		/*Handle comms*/
 		if(uart_buf_received != 0)
@@ -285,31 +230,19 @@ int main(void)
 			last_ppp_message_recieved_ts = tick;
 			//mode with 1 byte of padding, position, checksum
 			/*Blast out the motor data back to the person who asked us to move! client doesn't really need to parse it*/
-			uint8_t prestuff[1*sizeof(int16_t) + sizeof(int32_t)*3 + 1*sizeof(int16_t)] = {0};	//length is currently fixed, but in future, if we continue with FD can, we will need to extend this.
+			uint8_t prestuff[3*sizeof(int32_t)+1*sizeof(int16_t)] = {0};	//motor1 pos, motor2 pos, fletcher's
 			/*
-			 * Byte 0: mode
-			 * Byte 1: pad (zeo)
-			 * Byte 2,3,4,5: motor data 32
-			 * Byte 6,7,8,9: motor data 32
-			 * Byte 10,11,12,13: motor data 32
-			 * Bytes 14,15: checksum16
+			* Bytes 0,1,2,3 - motor1 position
+			* Bytes 4,5,6,7 - motor2 position
+			* Bytes 8,9,10,11 - time ms
+			 * Bytes 12,13: checksum16
 			 * */
-			prestuff[0] = gl_crq.mode;
-			uint16_t* pbu16 = (uint16_t*)&prestuff[0];
-			int32_t * pbi32 = (int32_t*)(&prestuff[2]);
-			if(gl_crq.mode == POSITION || gl_crq.mode == STEALTH)
-			{
-				pbi32[0] = motors[0].position;
-				pbi32[1] = motors[1].position;
-				pbi32[2] = motors[2].position;
-			}
-			else if(gl_crq.mode == TURBO)
-			{
-				pbi32[0] = motors[0].velocity;
-				pbi32[1] = motors[1].velocity;
-				pbi32[2] = motors[2].velocity;
-			}
-			pbu16[7] = fletchers_checksum16(pbu16, 7);
+			int32_t * pbi32 = (int32_t*)(&prestuff[0]);
+			uint16_t * pbu16 = (uint16_t*)(&prestuff[0]);
+			pbi32[0] = motors[0].position; //sizeof(int32_t)*index + sizeof(int32_t) - 1
+			pbi32[1] = motors[1].position;
+			pbi32[2] = tick;
+			pbu16[6] = fletchers_checksum16(pbu16, 6);
 
 			int len = PPP_stuff(prestuff, sizeof(prestuff), firststuff, sizeof(firststuff));
 			len = PPP_stuff(firststuff, len, gl_ppp_stuff_buf, sizeof(gl_ppp_stuff_buf));	//double stuff the buffer! AAAH
@@ -331,15 +264,16 @@ int main(void)
 			send_motor_i32(motors[tx_ididx].id, motors[tx_ididx].can_command);
 			tx_ididx = (tx_ididx + 1) % NUM_MOTORS;
 		}
+
 		if(HAL_FDCAN_GetRxFifoFillLevel(&hfdcan1, FDCAN_RX_FIFO0) != 0)
 		{
 			HAL_FDCAN_GetRxMessage(&hfdcan1, FDCAN_RX_FIFO0, &can_rx_header, can_rx_data.d);
 			{
 				trigger_can_tx = 1;	//if we received a reply before our pending timeout, trigger another tx  before the 10ms timeout!
 				uint16_t id = can_rx_header.Identifier;//note, test this, should retrieve correct ID
-				motors[id-1].position = can_rx_data.i32[0];
-				motors[id-1].current = can_rx_data.i16[2];
-				motors[id-1].velocity = can_rx_data.i16[3];
+				motors[id-motors[0].id].position = can_rx_data.i32[0];	//
+				motors[id-motors[0].id].current = can_rx_data.i16[2];
+				motors[id-motors[0].id].velocity = can_rx_data.i16[3];
 			}
 		}
 
