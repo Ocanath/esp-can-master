@@ -57,7 +57,7 @@ void ppp_rx_cplt_callback(uart_it_t * h)
 			 * 14-15: chk
 			 */
 			gl_crq.mode = pbu8[0];
-			for(int i = 0; i < NUM_MOTORS; i++)
+			for(int i = 0; i < NUM_MOTORS && i*sizeof(int32_t) < sizeof(m_huart2.ppp_unstuff_buf); i++)
 			{
 				gl_crq.commands[i] = pbi32[i];
 			}
@@ -222,8 +222,8 @@ int main(void)
 	{
 		uint32_t tick = HAL_GetTick();
 
-		motors[0].can_command = wrap_2pi_14b(m0_targ14 + m0_offset);
-		motors[1].can_command = wrap_2pi_14b(m1_targ14 + m1_offset);
+		motors[0].can_command = wrap_2pi_14b(gl_crq.commands[0] + m0_offset);
+		motors[1].can_command = wrap_2pi_14b(gl_crq.commands[1] + m1_offset);
 
 		/*Handle comms*/
 		if(uart_buf_received != 0)
