@@ -55,7 +55,7 @@ int get_ik_angles_float(float vx, float vy, float vz, float * theta1 , float*the
 }
 
 
-void get_ik_angles_double(double vx, double vy, double vz, double* theta1, double* theta2)
+int get_ik_angles_double(double vx, double vy, double vz, double* theta1, double* theta2)
 {
 	double vx_pow2 = vx * vx;
 	double vx_pow4 = vx_pow2 * vx_pow2;
@@ -64,14 +64,34 @@ void get_ik_angles_double(double vx, double vy, double vz, double* theta1, doubl
 	double vz_pow4 = vz_pow2 * vz_pow2;
 
 	double operand = vx_pow4 + vx_pow2 * vy_pow2 + 2 * vx_pow2 * vz_pow2 + vy_pow2 * vz_pow2 + vz_pow4;
+	if (operand < 0)
+	{
+		return -1;
+	}
 	double O2Targy_0 = -BasePlaneDistance * vy * vz / sqrt(operand);
-	double O2Targz_0 = BasePlaneDistance * vx * vy / sqrt(vx_pow4 + vx_pow2 * vy_pow2 + 2 * vx_pow2 * vz_pow2 + vy_pow2 * vz_pow2 + vz_pow4) + BasePlaneDistance;
+	operand = vx_pow4 + vx_pow2 * vy_pow2 + 2 * vx_pow2 * vz_pow2 + vy_pow2 * vz_pow2 + vz_pow4;
+	if (operand < 0)
+	{
+		return -1;
+	}
+	double O2Targz_0 = BasePlaneDistance * vx * vy / sqrt(operand) + BasePlaneDistance;
 
-	double theta2_s2 = -asin((BasePlaneDistance - O2Targz_0) / BasePlaneDistance);
-	double theta1_s2 = -asin(O2Targy_0 / (BasePlaneDistance * cos(theta2_s2)));
+	operand = (BasePlaneDistance - O2Targz_0) / BasePlaneDistance;
+	if (operand < -1 || operand > 1)
+	{
+		return -1;
+	}
+	double theta2_s2 = -asin(operand);
+	operand = O2Targy_0 / (BasePlaneDistance * cos(theta2_s2));
+	if (operand < -1 || operand > 1)
+	{
+		return -1;
+	}
+	double theta1_s2 = -asin(operand);
 
 	*theta1 = atan2(vx, vz);
 	*theta2 = theta1_s2;
+	return 0;
 }
 
 
