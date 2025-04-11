@@ -191,12 +191,14 @@ int main(void)
 	int32_t m0_offset = -990;
 	int32_t m1_offset = 16921;
 	send_motor_i32(motors[0].id, m0_offset);
+	HAL_Delay(1);
 	send_motor_i32(motors[1].id, m1_offset);
-
+	HAL_Delay(1);
 
 	for(int i = 0; i < NUM_MOTORS; i++)
 	{
 		send_misc_i32(motors[i].id, CHANGE_PCTL_VQ_OUTSAT, 3546);
+		HAL_Delay(1);
 //		send_misc_u8(motors[i].id, SET_PCTL_VQ_MODE, 0);	//load offsetted target (0) , then enable pctl_vq. also potentially change pctl gains
 	}
 
