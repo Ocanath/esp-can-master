@@ -1,0 +1,13 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="17.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup>
+    <CustomBuild Include="C:\Users\ocanath\OcanathProj\workspace-ocanath\esp-can-master\build-test\CMakeFiles\0cf7c576bed64b3363574bbde7877f3d\generate.stamp.rule">
+      <Filter>CMake Rules</Filter>
+    </CustomBuild>
+  </ItemGroup>
+  <ItemGroup>
+    <Filter Include="CMake Rules">
+      <UniqueIdentifier>{D6D0DD87-09DF-3214-B0CA-FFADE3F49CC1}</UniqueIdentifier>
+    </Filter>
+  </ItemGroup>
+</Project>

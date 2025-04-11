@@ -222,7 +222,7 @@ int main(void)
 	{
 		uint32_t tick = HAL_GetTick();
 
-		motors[0].can_command = wrap_2pi_14b(gl_crq.commands[0] + m0_offset);
+		motors[0].can_command = wrap_2pi_14b(gl_crq.commands[0] + m0_offset);	//todo: verify sign is correct
 		motors[1].can_command = wrap_2pi_14b(gl_crq.commands[1] + m1_offset);
 
 		/*Handle comms*/

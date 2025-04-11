@@ -8,3 +8,4 @@ FixedpointTrigTest/*.csv
 Datalogging/__pycache__/
 */__pycache__/
 Python/__pycache__/
+build-tests/
