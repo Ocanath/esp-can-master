@@ -197,16 +197,23 @@ int main(void)
 	{
 		m_mcpy(&upsampling_filter[i], &gl_upsampling_filter, sizeof(iirSOS));
 	}
+	uint32_t upsample_ts = 0;
 	while (1)
 	{
 		uint32_t tick = HAL_GetTick();
-
-		motors[0].can_command = wrap_2pi_14b(gl_crq.commands[0] + m0_offset);	//todo: verify sign is correct
-		motors[1].can_command = wrap_2pi_14b(gl_crq.commands[1] + m1_offset);
+//		if(tick - upsample_ts >= 1)
+//		{
+//			upsample_ts = tick;
+//
+//
+//		}
+		motors[0].can_command = wrap_2pi_14b(-gl_crq.commands[0] + m0_offset);	//todo: verify sign is correct
+		motors[1].can_command = wrap_2pi_14b(-gl_crq.commands[1] + m1_offset);
 
 		/*Handle comms*/
 		if(uart_buf_received != 0)
 		{
+
 			uart_buf_received = 0;
 			last_ppp_message_recieved_ts = tick;
 			//mode with 1 byte of padding, position, checksum
