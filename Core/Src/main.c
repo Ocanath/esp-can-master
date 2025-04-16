@@ -201,19 +201,22 @@ int main(void)
 	while (1)
 	{
 		uint32_t tick = HAL_GetTick();
-//		if(tick - upsample_ts >= 1)
-//		{
-//			upsample_ts = tick;
-//
-//
-//		}
-		motors[0].can_command = wrap_2pi_14b(-gl_crq.commands[0] + m0_offset);	//todo: verify sign is correct
-		motors[1].can_command = wrap_2pi_14b(-gl_crq.commands[1] + m1_offset);
+		if(tick - upsample_ts >= 1)
+		{
+			upsample_ts = tick;
+			float m0filt = sos_f(&upsampling_filter[0], (float)(-gl_crq.commands[0]));
+			float m1filt = sos_f(&upsampling_filter[1], (float)(-gl_crq.commands[1]));
+
+			motors[0].can_command = wrap_2pi_14b((int32_t)m0filt + m0_offset);	//todo: verify sign is correct
+			motors[1].can_command = wrap_2pi_14b((int32_t)m1filt + m1_offset);
+		}
+
+//		motors[0].can_command = wrap_2pi_14b(-gl_crq.commands[0] + m0_offset);	//todo: verify sign is correct
+//		motors[1].can_command = wrap_2pi_14b(-gl_crq.commands[1] + m1_offset);
 
 		/*Handle comms*/
 		if(uart_buf_received != 0)
 		{
-
 			uart_buf_received = 0;
 			last_ppp_message_recieved_ts = tick;
 			//mode with 1 byte of padding, position, checksum
