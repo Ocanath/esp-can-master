@@ -37,6 +37,11 @@ typedef struct uart_it_t
 	int bytes_to_send;	//Set by main software, cleared by handler.
 	int tx_idx;	//helper variable, used to increment through the tx buffer
 	uint8_t * tx_buf;	//pointer to txbuffer.
+
+
+	GPIO_TypeDef * rs485_gpio_port;
+	uint16_t rs485_gpio_pin;
+
 }uart_it_t;
 
 extern uint8_t gl_ppp_stuff_buf[128];

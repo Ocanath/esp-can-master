@@ -31,7 +31,9 @@ uart_it_t m_huart2 =
 		.rx_buf = {0},
 		.tx_buf = 0,
 		.rx_idx = 0,
-		.tx_idx = 0
+		.tx_idx = 0,
+		.rs485_gpio_port = NULL,
+		.rs485_gpio_pin = 0
 };
 
 uart_it_t m_huart1 =
@@ -42,7 +44,9 @@ uart_it_t m_huart1 =
 		.rx_buf = {0},
 		.tx_buf = 0,
 		.rx_idx = 0,
-		.tx_idx = 0
+		.tx_idx = 0,
+		.rs485_gpio_port = RS485_DE_GPIO_Port,
+		.rs485_gpio_pin = RS485_DE_Pin
 };
 
 uint8_t gl_ppp_stuff_buf[128] = {0};
@@ -145,9 +149,9 @@ void m_uart_it_handler(uart_it_t * h, void (*idle_callback)(uart_it_t * h), void
 		h->Instance->CR1 &= ~TXEIE;	//be sure to cancel tx interrupts if you don't want to tx, otherwise they'll trigger an interrupt storm
 	}
 
-	if(tc != 0)
+	if(tc != 0 && h->rs485_gpio_port != NULL)
 	{
-		HAL_GPIO_WritePin(RS485_DE_GPIO_Port, RS485_DE_Pin, 0);
+		HAL_GPIO_WritePin(h->rs485_gpio_port, h->rs485_gpio_pin, 0);
 	}
 
 	h->Instance->ICR |=  ICR_CLEAR_ALL;	//clear all remaining interrupt flags to avoid a storm
@@ -155,7 +159,10 @@ void m_uart_it_handler(uart_it_t * h, void (*idle_callback)(uart_it_t * h), void
 
 void m_uart_tx_start(uart_it_t * h, uint8_t * buf, int size)
 {
-	HAL_GPIO_WritePin(RS485_DE_GPIO_Port, RS485_DE_Pin, 1);
+	if(h->rs485_gpio_port != NULL)
+	{
+		HAL_GPIO_WritePin(h->rs485_gpio_port, h->rs485_gpio_pin, 1);
+	}
 	h->tx_idx = 0;
 	h->bytes_to_send = size;
 	h->tx_buf = buf;
