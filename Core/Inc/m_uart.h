@@ -42,8 +42,10 @@ typedef struct uart_it_t
 extern uint8_t gl_ppp_stuff_buf[128];
 
 extern uart_it_t m_huart2;
+extern uart_it_t m_huart1;
 
-//void m_uart_it_handler(uart_it_t * h);
+void m_uart_enable_interrupt_flags(uart_it_t * h);
+uint8_t get_checksum(uint8_t * arr, int size);	//TODO: find a better place for this to live??
 void m_uart_it_handler(uart_it_t * h, void (*callback)(uart_it_t * h) );
 void m_uart_tx_start(uart_it_t * h, uint8_t * buf, int size);
 void m_uart2_rx_cplt_callback(uart_it_t * h);

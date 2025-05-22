@@ -13,12 +13,13 @@
 #define ICR_CLEAR_ALL	0x00121BDF
 
 /*ISR bits*/
-#define RXNE_BIT 	(1 << 5)
-#define TXE_BIT		(1 << 7)
-#define IDLE_BIT	(1 << 4)
+#define RXNE_BIT 	(1 << 5)	//rx not empty interrupt flag mask
+#define TXE_BIT		(1 << 7)	//tx empty interrupt flag mask
+#define IDLE_BIT	(1 << 4)	//idle interrupt flag mask
+#define TC_BIT		(1 << 6)
 
 /*CR1 bits*/
-#define TXEIE		(1 << 7)
+#define TXEIE		(1 << 7)	//tx interrupt enable flag
 
 
 /*Initialize a baremetal uart handler structure for UART 1*/
@@ -33,9 +34,24 @@ uart_it_t m_huart2 =
 		.tx_idx = 0
 };
 
+uart_it_t m_huart1 =
+{
+		.Instance = USART1,
+		.bytes_received = 0,
+		.bytes_to_send = 0,
+		.rx_buf = {0},
+		.tx_buf = 0,
+		.rx_idx = 0,
+		.tx_idx = 0
+};
+
 uint8_t gl_ppp_stuff_buf[128] = {0};
 
 /**
+ * Weak prototype for external implementation of rx frame complete callback.
+ * Gets called whenever a frame finishes, with an IDLE detection.
+ *
+ * h will contain the number of bytes actually received in the frame.
   */
 __weak void m_uart2_rx_cplt_callback(uart_it_t * h)
 {
@@ -48,6 +64,31 @@ __weak void ppp_rx_cplt_callback(uart_it_t * h)
 
 }
 
+
+/*
+Generic hex checksum calculation.
+For lack of a better place to put this, it'll go here.
+ */
+uint8_t get_checksum(uint8_t * arr, int size)
+{
+	int8_t checksum = 0;
+	for (int i = 0; i < size; i++)
+		checksum += (int8_t)arr[i];
+	return -checksum;
+}
+
+/*
+ *
+ * */
+void m_uart_enable_interrupt_flags(uart_it_t * h)
+{
+	h->Instance->CR1 |= (1 << 5) | (1 << 7) | (1 << 2) | (1 << 3);       //enable rxneie, txeie, RE and TE
+	h->Instance->CR1 &= ~(1 << 7);       //disable TX interrupt
+	h->Instance->CR1 |= (1 << 6);       //enable Transmit Complete interrupt
+	h->Instance->CR1 |= (1 << 4);        //enable IDLE interrupt
+}
+
+
 /*
  * Baremetal uart handler.
  *
@@ -56,7 +97,7 @@ __weak void ppp_rx_cplt_callback(uart_it_t * h)
  *
  * Idea: simultaneously do PPP unstuffing
  * */
-void m_uart_it_handler(uart_it_t * h, void (*callback)(uart_it_t * h) )
+void m_uart_it_handler(uart_it_t * h, void (*callback)(uart_it_t * h) )	//add ppp callback as function pointer argument
 {
 
 	uint32_t isrflags   = h->Instance->ISR;	//read interrupt status register
@@ -66,7 +107,7 @@ void m_uart_it_handler(uart_it_t * h, void (*callback)(uart_it_t * h) )
 	int rxne = (isrflags & RXNE_BIT) != 0;		//check if there's bytes in the queue
 	int txe = (isrflags & TXE_BIT) != 0;		//check if the tx queue is ready to receive
 	int idle = (isrflags & IDLE_BIT) != 0;		//check if the rx frame has ended (idle)
-
+	int tc = (isrflags & TC_BIT) != 0;			//check if the Last data has been transmitted from the Shift Register
 	if(rxne != 0)	//if there's stuff in the buffer
 	{
 		uint8_t nb = rdr & 0x00FF;
@@ -94,11 +135,17 @@ void m_uart_it_handler(uart_it_t * h, void (*callback)(uart_it_t * h) )
 		h->Instance->CR1 &= ~TXEIE;	//be sure to cancel tx interrupts if you don't want to tx, otherwise they'll trigger an interrupt storm
 	}
 
+	if(tc != 0)
+	{
+		HAL_GPIO_WritePin(RS485_DE_GPIO_Port, RS485_DE_Pin, 0);
+	}
+
 	h->Instance->ICR |=  ICR_CLEAR_ALL;	//clear all remaining interrupt flags to avoid a storm
 }
 
 void m_uart_tx_start(uart_it_t * h, uint8_t * buf, int size)
 {
+	HAL_GPIO_WritePin(RS485_DE_GPIO_Port, RS485_DE_Pin, 1);
 	h->tx_idx = 0;
 	h->bytes_to_send = size;
 	h->tx_buf = buf;

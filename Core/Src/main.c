@@ -158,6 +158,9 @@ int main(void)
 	MX_TIM2_Init();
 	MX_SPI1_Init();
 	MX_USART2_UART_Init();
+	MX_USART1_UART_Init();
+	m_uart_enable_interrupt_flags(&m_huart1);
+	m_uart_enable_interrupt_flags(&m_huart2);
 	MX_FDCAN1_Init();
 	FDCAN_Config();
 
