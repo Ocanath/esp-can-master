@@ -46,9 +46,13 @@ extern uart_it_t m_huart1;
 
 void m_uart_enable_interrupt_flags(uart_it_t * h);
 uint8_t get_checksum(uint8_t * arr, int size);	//TODO: find a better place for this to live??
-void m_uart_it_handler(uart_it_t * h, void (*callback)(uart_it_t * h) );
+void m_uart_it_handler(uart_it_t * h, void (*idle_callback)(uart_it_t * h), void (*ppp_callback)(uart_it_t * h) );
 void m_uart_tx_start(uart_it_t * h, uint8_t * buf, int size);
+
+/*Callbacks*/
 void m_uart2_rx_cplt_callback(uart_it_t * h);
-void ppp_rx_cplt_callback(uart_it_t * h);
+void m_uart1_rx_cplt_callback(uart_it_t * h);
+void ppp_uart2_rx_cplt_callback(uart_it_t * h);
+void ppp_uart1_rx_cplt_callback(uart_it_t * h);
 
 #endif /* M_UART_H_ */

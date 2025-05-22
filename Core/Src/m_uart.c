@@ -59,7 +59,17 @@ __weak void m_uart2_rx_cplt_callback(uart_it_t * h)
   UNUSED(h);
 }
 
-__weak void ppp_rx_cplt_callback(uart_it_t * h)
+__weak void ppp_uart2_rx_cplt_callback(uart_it_t * h)
+{
+
+}
+__weak void m_uart1_rx_cplt_callback(uart_it_t * h)
+{
+  /* Prevent unused argument(s) compilation warning */
+  UNUSED(h);
+}
+
+__weak void ppp_uart1_rx_cplt_callback(uart_it_t * h)
 {
 
 }
@@ -97,7 +107,7 @@ void m_uart_enable_interrupt_flags(uart_it_t * h)
  *
  * Idea: simultaneously do PPP unstuffing
  * */
-void m_uart_it_handler(uart_it_t * h, void (*callback)(uart_it_t * h) )	//add ppp callback as function pointer argument
+void m_uart_it_handler(uart_it_t * h, void (*idle_callback)(uart_it_t * h), void (*ppp_callback)(uart_it_t * h) )	//add ppp callback as function pointer argument
 {
 
 	uint32_t isrflags   = h->Instance->ISR;	//read interrupt status register
@@ -115,13 +125,13 @@ void m_uart_it_handler(uart_it_t * h, void (*callback)(uart_it_t * h) )	//add pp
 			h->rx_buf[h->rx_idx++] = nb;
 		h->ppp_unstuffed_size = parse_PPP_stream(nb, h->ppp_unstuff_buf, sizeof(h->ppp_unstuff_buf), h->ppp_rx_buf, sizeof(h->ppp_rx_buf), &h->ppp_bidx);
 		if(h->ppp_unstuffed_size > 0)
-			ppp_rx_cplt_callback(h);
+			(*ppp_callback)(h);
 	}
 	if(idle != 0)	//if idle line is detected
 	{
 		h->bytes_received = h->rx_idx;
 		h->rx_idx = 0;	//end of receive frame behavior
-		(*callback)(h);	//function pointer to callback deref.
+		(*idle_callback)(h);	//function pointer to callback deref.
 	}
 
 	if(txe != 0 && h->tx_idx < h->bytes_to_send)	//if the TDR register is empty and we still have bytes to send
