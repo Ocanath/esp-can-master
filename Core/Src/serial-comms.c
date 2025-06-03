@@ -117,7 +117,7 @@ int create_misc_write_message(unsigned char address, uint16_t index, unsigned ch
     int cur_byte_index = 0;
     msg_buf[cur_byte_index++] = address;
     
-    //load the index
+    //load the index, clear the read bit
     index = index & 0x7FFF;
     unsigned char * p_index_word = (unsigned char *)(&index);
     msg_buf[cur_byte_index++] = p_index_word[0];
@@ -165,7 +165,7 @@ int parse_misc_command(unsigned char * msg, int len, unsigned char * p_replybuf,
     {
         //write    
         int write_len = len - sizeof(uint16_t);   //index argument parsed, skip it
-        if(byte_index + write_len >= sizeof(comms_t))
+        if(byte_index + write_len > sizeof(comms_t))
         {
             return ERROR_MALFORMED_MESSAGE;
         }
@@ -194,18 +194,33 @@ int parse_misc_command(unsigned char * msg, int len, unsigned char * p_replybuf,
             //read
             uint16_t * p_numread_words = (uint16_t*)(&msg[2]);
             uint32_t numread_bytes = (uint32_t)(*p_numread_words * sizeof(uint32_t));
-            if(numread_bytes + byte_index > sizeof(comms_t) || numread_bytes > replybuf_size)
+            if(numread_bytes + byte_index > sizeof(comms_t) || (numread_bytes + NUM_BYTES_CHECKSUM + NUM_BYTES_ADDRESS) > replybuf_size)	//pre-check size once
             {
                 return ERROR_MALFORMED_MESSAGE;
             }
             else
             {
 				unsigned char * p_comms = (unsigned char *)comms;
-                for(int i = 0; i < numread_bytes; i++)
+				int bidx = 0;
+
+				//first byte is the master address (all replies go to master)
+				p_replybuf[bidx++] = MASTER_ADDRESS;
+
+				//next n bytes get loaded into the payload
+				for(int i = 0; i < numread_bytes; i++)
                 {
-                    p_replybuf[i] = p_comms[byte_index + i];
+                    p_replybuf[bidx++] = p_comms[byte_index + i];
                 }   
-                *reply_len = numread_bytes;
+
+				//final 2 bytes get checksum
+                uint16_t checksum = get_crc16(p_replybuf, bidx);
+                unsigned char * p_checksum = (unsigned char *)(&checksum);
+                p_replybuf[bidx++] = p_checksum[0];
+                p_replybuf[bidx++] = p_checksum[1];
+
+                //load reply len for serial transmission
+                *reply_len = bidx;
+
                 return SERIAL_PROTOCOL_SUCCESS;
             }
         }
