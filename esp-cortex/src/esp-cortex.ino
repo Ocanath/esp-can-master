@@ -44,11 +44,15 @@ void setup() {
   /*Begin wifi connection*/
   WiFi.mode(WIFI_STA);  
   WiFi.begin((const char *)gl_prefs.ssid, (const char *)gl_prefs.password);
+  uint32_t timeout = millis() + 3000;
+  while(millis() < timeout && WiFi.status() != WL_CONNECTED);
   //connected = WiFi.waitForConnectResult();
   if (connected != WL_CONNECTED) {
     Serial.printf("Connection to network %s failed for an unknown reason\r\n", (const char *)gl_prefs.ssid);
   }
-
+  else {
+    Serial.printf("Connected to network %s\r\n", (const char *)gl_prefs.ssid);
+  }
 }
 
 
