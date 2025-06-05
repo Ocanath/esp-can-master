@@ -12,6 +12,7 @@
 uint8_t gl_msg_buf[62] = {};
 uint8_t gl_reply_received = 0;
 uint8_t gl_use_ppp = 1;
+uint8_t gl_rc = 0;	//for dbugging, rc that can't get optimtized out
 
 /*This is the general comms handler*/
 void ppp_uart1_rx_cplt_callback(uart_it_t * h)
@@ -115,15 +116,29 @@ int main(void)
 
 
 	gl_motors[0].fds.module_number = 0x03;
-	uart_read_struct_mem_ppp(&gl_motors[0].mpctl_rotor_vq.kpki.kp.i32, &gl_motors[0], sizeof(int32_t)*4, 3000);
+	gl_rc = 1;
+	gl_motors[0].motor_command_mode = PCTL_VQ;
+	uart_write_struct_mem_ppp(&gl_motors[0].motor_command_mode, &gl_motors[0], sizeof(int32_t));
 	HAL_Delay(1);
-	gl_motors[0].mpctl_rotor_vq.kpki.kp.i32++;
-	gl_motors[0].mpctl_rotor_vq.kpki.kp.radix--;
-	gl_motors[0].mpctl_rotor_vq.kpki.ki.i32++;
-	gl_motors[0].mpctl_rotor_vq.kpki.ki.radix--;
-	uart_write_struct_mem_ppp(&gl_motors[0].mpctl_rotor_vq, &gl_motors[0], sizeof(int32_t)*4);
+	gl_motors[0].motor_command_mode++;
+	int rc = uart_read_struct_mem_ppp(&gl_motors[0].motor_command_mode, &gl_motors[0], sizeof(int32_t), 3000);
 	HAL_Delay(1);
-	uart_read_struct_mem_ppp(&gl_motors[0].mpctl_rotor_vq.kpki.kp.i32, &gl_motors[0], sizeof(int32_t)*4, 3000);
+	if(rc == SUCCESS && gl_motors[0].motor_command_mode == PCTL_VQ)
+	{
+		gl_rc = 0;
+	}
+//	uart_read_struct_mem_ppp(&gl_motors[0].mpctl_rotor_vq.kpki.kp.i32, &gl_motors[0], sizeof(int32_t)*4, 3000);
+//	HAL_Delay(1);
+//	gl_motors[0].mpctl_rotor_vq.kpki.kp.i32++;
+//	gl_motors[0].mpctl_rotor_vq.kpki.kp.radix--;
+//	gl_motors[0].mpctl_rotor_vq.kpki.ki.i32++;
+//	gl_motors[0].mpctl_rotor_vq.kpki.ki.radix--;
+//	uart_write_struct_mem_ppp(&gl_motors[0].mpctl_rotor_vq, &gl_motors[0], sizeof(int32_t)*4);
+//	HAL_Delay(1);
+//	uart_read_struct_mem_ppp(&gl_motors[0].mpctl_rotor_vq.kpki.kp.i32, &gl_motors[0], sizeof(int32_t)*4, 3000);
+
+
+
 
 	while (1)
 	{
