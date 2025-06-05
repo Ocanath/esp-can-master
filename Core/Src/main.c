@@ -56,9 +56,14 @@ int uart_write_struct_mem_ppp(void * pword, comms_t * pcomms, size_t size)
 		return msg_len;
 }
 
+
 int uart_read_struct_word_ppp(void * pword, comms_t * pcomms, size_t size, uint32_t timeout)
 {
-	int msg_len = create_read_struct_mem_message(pword, size, pcomms, gl_msg_buf, sizeof(gl_msg_buf));
+	if(size % sizeof(uint32_t) != 0)	//it's fine to pass a sizeof() param, but we gotta make sure it's a multiple of 4 for this to play nice with the message protocol
+	{
+		return ERROR_MALFORMED_MESSAGE;
+	}
+	int msg_len = create_read_struct_mem_message(pword, size/sizeof(uint32_t), pcomms, gl_msg_buf, sizeof(gl_msg_buf));
 	if(msg_len > 0)
 	{
 		if(gl_use_ppp != 0)

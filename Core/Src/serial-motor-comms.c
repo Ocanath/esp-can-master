@@ -148,22 +148,25 @@ int create_write_struct_mem_message(void * pstart, size_t num_bytes, comms_t * p
 /*
  * Helper function to create the read request message for a specific 32bit-word in the structure
  * */
-int create_read_struct_mem_message(void * pstart, size_t num_bytes, comms_t * pcomm, unsigned char * tx_buf, size_t tx_size)
+int create_read_struct_mem_message(void * pstart, size_t num_words, comms_t * pcomm, unsigned char * tx_buf, size_t tx_size)
 {
 	int idx = index_of_field(pstart, pcomm);
 	if(idx < 0)
 	{
 		return idx;
 	}
-	if( (idx * sizeof(int32_t)+ num_bytes) > sizeof(comms_t))
+	if( ((idx + num_words)*sizeof(int32_t)) > sizeof(comms_t))
 	{
 		return ERROR_MALFORMED_MESSAGE;
 	}
 	unsigned char misc_address = get_misc_address(pcomm->fds.module_number);
-	int len = create_misc_read_message(misc_address, idx, num_bytes, tx_buf, tx_size);
+	int len = create_misc_read_message(misc_address, idx, num_words, tx_buf, tx_size);
 	return len;
 }
 
+/*
+ * Helper function to take a misc read response and load it back up into the master struct
+ * */
 int update_comms_with_read_reply(void * pword, comms_t * pcomms, unsigned char * msg_buf, int msg_len)
 {
 	int idx = index_of_field(pword,pcomms);
