@@ -34,6 +34,25 @@ void ppp_uart2_rx_cplt_callback(uart_it_t * h)
 
 }
 
+
+int uart_write_struct_word(void * pword, comms_t * pcomms)
+{
+	int msg_len = write_struct_mem(pword, 1, pcomms, gl_msg_buf, sizeof(gl_msg_buf));
+	if(msg_len > 0)
+	{
+		int len = PPP_stuff(gl_msg_buf, msg_len, gl_ppp_stuff_buf, sizeof(gl_ppp_stuff_buf));	//double stuff the buffer! AAAH
+		m_uart_tx_start(&m_huart1, gl_ppp_stuff_buf, len);
+		return 0;
+	}
+	else
+		return msg_len;
+}
+
+int uart_read_struct_word(void * pword, comms_t * pcomms)
+{
+	return 0;
+}
+
 int main(void)
 {
  	HAL_Init();

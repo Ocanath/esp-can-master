@@ -22,6 +22,7 @@ int create_misc_read_message(unsigned char address, uint16_t index, uint16_t num
 int parse_general_message(unsigned char address, unsigned char * msg, int len, unsigned char * reply_buf, int replybuf_size, int * reply_len, comms_t * comms);
 int parse_misc_command(unsigned char * msg, int len, unsigned char * p_replybuf, int replybuf_size, int * reply_len, comms_t * comms);
 int index_of_field(void * p_field, comms_t * comms);
+int write_struct_mem(void * pstart, int num_words, comms_t * pcomm, unsigned char * msg_buf, size_t msg_size);
 
 #endif
 

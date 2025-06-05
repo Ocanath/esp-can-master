@@ -1,6 +1,7 @@
 #include "serial-comms.h"
 #include "checksum.h"
 
+
 const comms_t default_comms_t =
 {
 		.foc = {},		//init to zero
@@ -119,6 +120,49 @@ int create_motor_command(unsigned char motor_address, int32_t command_word, unsi
 	return bidx;
 }
 
+/*Helper function to get the misc address from the motor address*/
+unsigned char get_misc_address(unsigned char motor_address)
+{
+	return 0xFF - motor_address;
+}
+
+/*
+ * Write motor struct
+ * */
+int write_struct_mem(void * pstart, int num_words, comms_t * pcomm, unsigned char * msg_buf, size_t msg_size)
+{
+	int idx = index_of_field(pstart, pcomm);
+	if(idx < 0)
+	{
+		return idx;
+	}
+	if((idx + num_words) * sizeof(int32_t) > sizeof(comms_t))
+	{
+		return ERROR_MALFORMED_MESSAGE;
+	}
+	unsigned char misc_address = get_misc_address(pcomm->fds.module_number);
+	int len = create_misc_write_message(misc_address, idx, (unsigned char *)pstart, num_words*sizeof(int32_t), msg_buf, msg_size);
+	return len;
+}
+
+/*
+ * Helper function to create the read request message for a specific 32bit-word in the structure
+ * */
+int create_read_struct_word_message(void * pstart, comms_t * pcomm, unsigned char * tx_buf, size_t tx_size)
+{
+	int idx = index_of_field(pstart, pcomm);
+	if(idx < 0)
+	{
+		return idx;
+	}
+	if((idx + 1) * sizeof(int32_t) > sizeof(comms_t))
+	{
+		return ERROR_MALFORMED_MESSAGE;
+	}
+	unsigned char misc_address = get_misc_address(pcomm->fds.module_number);
+	int len = create_misc_read_message(misc_address, idx, 1, tx_buf, tx_size);
+	return len;
+}
 
 /*
  * Parse a reply from a motor command
@@ -160,12 +204,6 @@ int parse_motor_message_reply(unsigned char * msg, int msg_len, comms_t * comms)
 	comms->foc.gl_theta_rem_m = *pi32;
 	
 	return SERIAL_PROTOCOL_SUCCESS;
-}
-
-/*Helper function to get the misc address from the motor address*/
-unsigned char get_misc_address(unsigned char motor_address)
-{
-	return 0xFF - motor_address;
 }
 
 /*
