@@ -35,7 +35,7 @@ void test_write_struct_mem(void)
 	unsigned char msg[64] = {};
 	unsigned char reply[64] = {};
 	int reply_len = 0;
-	int len = write_struct_mem(&master_comms.mpctl_rotor_vq.kpki.kp.i32, 1, &master_comms, msg, sizeof(msg));
+	int len = create_write_struct_mem_message(&master_comms.mpctl_rotor_vq.kpki.kp.i32, sizeof(int32_t), &master_comms, msg, sizeof(msg));
 	TEST_ASSERT_GREATER_THAN(0, len);
 	int rc = parse_motor_message(slave_comms.fds.module_number, get_misc_address(slave_comms.fds.module_number), msg, len, reply, sizeof(reply), &reply_len, &slave_comms);
 	TEST_ASSERT_EQUAL(SERIAL_PROTOCOL_SUCCESS, rc);
@@ -43,7 +43,7 @@ void test_write_struct_mem(void)
 	slave_comms.mpctl_rotor_vq.kpki.kp.i32 = 0;
 	TEST_ASSERT_NOT_EQUAL(master_comms.mpctl_rotor_vq.kpki.kp.i32, slave_comms.mpctl_rotor_vq.kpki.kp.i32);
 
-	len = write_struct_mem(&master_comms.mpctl_rotor_vq.kpki.kp.i32, sizeof(pctl_params_t)/sizeof(int32_t), &master_comms, msg, sizeof(msg));
+	len = create_write_struct_mem_message(&master_comms.mpctl_rotor_vq.kpki.kp.i32, sizeof(pctl_params_t), &master_comms, msg, sizeof(msg));
 	TEST_ASSERT_GREATER_THAN(0, len);
 	rc = parse_motor_message(slave_comms.fds.module_number, get_misc_address(slave_comms.fds.module_number), msg, len, reply, sizeof(reply), &reply_len, &slave_comms);
 	TEST_ASSERT_EQUAL(SERIAL_PROTOCOL_SUCCESS, rc);
@@ -55,7 +55,53 @@ void test_write_struct_mem(void)
 	TEST_ASSERT_EQUAL(master_comms.mpctl_rotor_vq.kpki.x, slave_comms.mpctl_rotor_vq.kpki.x);
 	TEST_ASSERT_EQUAL(master_comms.mpctl_rotor_vq.kpki.x_sat, slave_comms.mpctl_rotor_vq.kpki.x_sat);
 	TEST_ASSERT_EQUAL(master_comms.mpctl_rotor_vq.kpki.out_rshift, slave_comms.mpctl_rotor_vq.kpki.out_rshift);
+
 }
+
+void test_read_struct_mem(void)
+{
+	comms_t master_comms = {};
+	comms_t slave_comms = {};
+	init_comms(&slave_comms);
+	master_comms.fds.module_number = 3;
+	slave_comms.fds.module_number = 3;
+	/*init the slave comms structure with all non-zeros this time. we'll be updating master with the read response*/
+	slave_comms.mpctl_rotor_vq.kpki.kp.i32 = 1000;
+	slave_comms.mpctl_rotor_vq.kpki.kp.radix = 4;
+	slave_comms.mpctl_rotor_vq.kpki.ki.i32 = 44;
+	slave_comms.mpctl_rotor_vq.kpki.ki.radix = 9;
+	slave_comms.mpctl_rotor_vq.kpki.x_integral_div = 100;
+	slave_comms.mpctl_rotor_vq.kpki.x = 1;
+	slave_comms.mpctl_rotor_vq.kpki.x_sat = 1111;
+	slave_comms.mpctl_rotor_vq.kpki.out_rshift = 2;
+	TEST_ASSERT_NOT_EQUAL(master_comms.mpctl_rotor_vq.kpki.kp.i32, slave_comms.mpctl_rotor_vq.kpki.kp.i32);
+	TEST_ASSERT_NOT_EQUAL(master_comms.mpctl_rotor_vq.kpki.kp.radix, slave_comms.mpctl_rotor_vq.kpki.kp.radix);
+	TEST_ASSERT_NOT_EQUAL(master_comms.mpctl_rotor_vq.kpki.ki.i32, slave_comms.mpctl_rotor_vq.kpki.ki.i32);
+	TEST_ASSERT_NOT_EQUAL(master_comms.mpctl_rotor_vq.kpki.ki.radix, slave_comms.mpctl_rotor_vq.kpki.ki.radix);
+	TEST_ASSERT_NOT_EQUAL(master_comms.mpctl_rotor_vq.kpki.x_integral_div, slave_comms.mpctl_rotor_vq.kpki.x_integral_div);
+	TEST_ASSERT_NOT_EQUAL(master_comms.mpctl_rotor_vq.kpki.x, slave_comms.mpctl_rotor_vq.kpki.x);
+	TEST_ASSERT_NOT_EQUAL(master_comms.mpctl_rotor_vq.kpki.x_sat, slave_comms.mpctl_rotor_vq.kpki.x_sat);
+	TEST_ASSERT_NOT_EQUAL(master_comms.mpctl_rotor_vq.kpki.out_rshift, slave_comms.mpctl_rotor_vq.kpki.out_rshift);
+	TEST_ASSERT_EQUAL(master_comms.fds.module_number, slave_comms.fds.module_number);//make sure the addys match
+	unsigned char msg[64] = {};
+	unsigned char reply[64] = {};
+	int reply_len = 0;
+	int len = create_read_struct_mem_message(&master_comms.mpctl_rotor_vq, sizeof(pctl_params_t), &master_comms, msg, sizeof(msg));
+	TEST_ASSERT_GREATER_THAN(0,len);
+	int rc = parse_motor_message(slave_comms.fds.module_number, get_misc_address(slave_comms.fds.module_number), msg, len, reply, sizeof(reply), &reply_len, &slave_comms);
+	TEST_ASSERT_EQUAL(SERIAL_PROTOCOL_SUCCESS, rc);
+	rc = update_comms_with_read_reply(&master_comms.mpctl_rotor_vq, &master_comms, reply, &reply_len);
+	TEST_ASSERT_EQUAL(SERIAL_PROTOCOL_SUCCESS, rc);
+	TEST_ASSERT_EQUAL(master_comms.mpctl_rotor_vq.kpki.kp.i32, slave_comms.mpctl_rotor_vq.kpki.kp.i32);
+	TEST_ASSERT_EQUAL(master_comms.mpctl_rotor_vq.kpki.kp.radix, slave_comms.mpctl_rotor_vq.kpki.kp.radix);
+	TEST_ASSERT_EQUAL(master_comms.mpctl_rotor_vq.kpki.ki.i32, slave_comms.mpctl_rotor_vq.kpki.ki.i32);
+	TEST_ASSERT_EQUAL(master_comms.mpctl_rotor_vq.kpki.ki.radix, slave_comms.mpctl_rotor_vq.kpki.ki.radix);
+	TEST_ASSERT_EQUAL(master_comms.mpctl_rotor_vq.kpki.x_integral_div, slave_comms.mpctl_rotor_vq.kpki.x_integral_div);
+	TEST_ASSERT_EQUAL(master_comms.mpctl_rotor_vq.kpki.x, slave_comms.mpctl_rotor_vq.kpki.x);
+	TEST_ASSERT_EQUAL(master_comms.mpctl_rotor_vq.kpki.x_sat, slave_comms.mpctl_rotor_vq.kpki.x_sat);
+	TEST_ASSERT_EQUAL(master_comms.mpctl_rotor_vq.kpki.out_rshift, slave_comms.mpctl_rotor_vq.kpki.out_rshift);
+}
+
 
 //TODO: make test_motor_comms_misc_read_command which is the dual of the test_motor_comms_misc_write_command
 /*
@@ -104,6 +150,7 @@ void test_motor_comms_misc_write_read_command(void)
 	int32_t * p_reply = (int32_t *)(&reply[NUM_BYTES_ADDRESS]);
 	TEST_ASSERT_EQUAL(master_comms.fds.align_offset_fixed, *p_reply);
 }
+
 
 void test_single_struct_write_read(void)
 {

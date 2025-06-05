@@ -11,6 +11,7 @@
 
 uint8_t gl_msg_buf[62] = {};
 uint8_t gl_reply_received = 0;
+uint8_t gl_use_ppp = 1;
 
 /*This is the general comms handler*/
 void ppp_uart1_rx_cplt_callback(uart_it_t * h)
@@ -35,22 +36,52 @@ void ppp_uart2_rx_cplt_callback(uart_it_t * h)
 }
 
 
-int uart_write_struct_word(void * pword, comms_t * pcomms)
+int uart_write_struct_mem_ppp(void * pword, comms_t * pcomms, size_t size)
 {
-	int msg_len = write_struct_mem(pword, 1, pcomms, gl_msg_buf, sizeof(gl_msg_buf));
+	int msg_len = create_write_struct_mem_message(pword, size, pcomms, gl_msg_buf, sizeof(gl_msg_buf));
 	if(msg_len > 0)
 	{
-		int len = PPP_stuff(gl_msg_buf, msg_len, gl_ppp_stuff_buf, sizeof(gl_ppp_stuff_buf));	//double stuff the buffer! AAAH
-		m_uart_tx_start(&m_huart1, gl_ppp_stuff_buf, len);
+		if(gl_use_ppp != 0)
+		{
+			int len = PPP_stuff(gl_msg_buf, msg_len, gl_ppp_stuff_buf, sizeof(gl_ppp_stuff_buf));	//double stuff the buffer! AAAH
+			m_uart_tx_start(&m_huart1, gl_ppp_stuff_buf, len);
+		}
+		else
+		{
+			m_uart_tx_start(&m_huart1, gl_msg_buf, msg_len);
+		}
 		return 0;
 	}
 	else
 		return msg_len;
 }
 
-int uart_read_struct_word(void * pword, comms_t * pcomms)
+int uart_read_struct_word_ppp(void * pword, comms_t * pcomms, size_t size, uint32_t timeout)
 {
-	return 0;
+	int msg_len = create_read_struct_mem_message(pword, size, pcomms, gl_msg_buf, sizeof(gl_msg_buf));
+	if(msg_len > 0)
+	{
+		if(gl_use_ppp != 0)
+		{
+			int len = PPP_stuff(gl_msg_buf, msg_len, gl_ppp_stuff_buf, sizeof(gl_ppp_stuff_buf));	//double stuff the buffer! AAAH
+			m_uart_tx_start(&m_huart1, gl_ppp_stuff_buf, len);
+			uint32_t wait_start = HAL_GetTick();
+			while(gl_reply_received == 0 || (HAL_GetTick() - wait_start) < timeout);
+			if(gl_reply_received)
+			{
+				gl_reply_received = 0;
+				update_comms_with_read_reply(pword, pcomms, m_huart1.ppp_unstuff_buf, m_huart1.ppp_unstuffed_size);
+			}
+			return 0;
+		}
+		else
+		{
+			//TODO: implement this
+			return 0;
+		}
+	}
+	else
+		return msg_len;
 }
 
 int main(void)
@@ -72,6 +103,7 @@ int main(void)
 	uint32_t uart_tx_ts = 0;
 
 	comms_t motor[1] = {};
+
 	while (1)
 	{
 		uint32_t tick = HAL_GetTick();
