@@ -92,7 +92,7 @@ int uart_read_struct_word_ppp(void * pword, comms_t * pcomms, size_t size, uint3
 	else
 		return msg_len;
 }
-
+comms_t gl_motors[1] = {};
 int main(void)
 {
  	HAL_Init();
@@ -111,7 +111,9 @@ int main(void)
 	uint32_t led_ts = 0;
 	uint32_t uart_tx_ts = 0;
 
-	comms_t motor[1] = {};
+
+	gl_motors[0].fds.module_number = 0x03;
+	uart_read_struct_word_ppp(&gl_motors[0].mpctl_rotor_vq.kpki.kp.i32, &gl_motors[0], sizeof(int32_t), 3000);
 
 	while (1)
 	{
@@ -128,7 +130,10 @@ int main(void)
 		}
 		if(gl_reply_received)
 		{
-			parse_motor_message_reply(m_huart1.ppp_unstuff_buf, m_huart1.ppp_unstuffed_size, &motor[0]);
+			if(m_huart1.ppp_unstuff_buf[0] == MASTER_ADDRESS)
+			{
+				parse_motor_message_reply(m_huart1.ppp_unstuff_buf, m_huart1.ppp_unstuffed_size, &gl_motors[0]);
+			}
 		}
 
 		/*LED blink*/
