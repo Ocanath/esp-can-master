@@ -204,7 +204,7 @@ int parse_misc_command(unsigned char * msg, int len, unsigned char * p_replybuf,
 				int bidx = 0;
 
 				//first byte is the master address (all replies go to master)
-				p_replybuf[bidx++] = MASTER_ADDRESS;
+				p_replybuf[bidx++] = MASTER_MISC_ADDRESS;
 
 				//next n bytes get loaded into the payload
 				for(int i = 0; i < numread_bytes; i++)

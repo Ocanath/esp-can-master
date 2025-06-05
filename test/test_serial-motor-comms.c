@@ -90,6 +90,8 @@ void test_read_struct_mem(void)
 	TEST_ASSERT_GREATER_THAN(0,len);
 	int rc = parse_motor_message(slave_comms.fds.module_number, get_misc_address(slave_comms.fds.module_number), msg, len, reply, sizeof(reply), &reply_len, &slave_comms);
 	TEST_ASSERT_EQUAL(SERIAL_PROTOCOL_SUCCESS, rc);
+	TEST_ASSERT_GREATER_THAN(0, reply_len);
+	TEST_ASSERT_EQUAL(reply[0], MASTER_MISC_ADDRESS);
 	rc = update_comms_with_read_reply(&master_comms.mpctl_rotor_vq, &master_comms, reply, reply_len);
 	TEST_ASSERT_EQUAL(SERIAL_PROTOCOL_SUCCESS, rc);
 	TEST_ASSERT_EQUAL(master_comms.mpctl_rotor_vq.kpki.kp.i32, slave_comms.mpctl_rotor_vq.kpki.kp.i32);

@@ -279,7 +279,7 @@ int parse_motor_message(unsigned char motor_address, unsigned char misc_address,
 			//We would want to make sure that the serial handler on slaves masks reads during self transmission, because
 			//RS485 will put them on the bus. But this information could be more useful than addressing the master, as it 
 			//helps us confirm that the message was sent by the intended motor.
-        	p_replybuf[bidx++] = MASTER_ADDRESS;	//always send to master.
+        	p_replybuf[bidx++] = MASTER_MOTOR_ADDRESS;	//always send to master.
 
         	//load the first value (two bytes of gl_iq)
         	int16_t val_compressed_i16 = (int16_t)(comms->foc.gl_iq);

@@ -156,11 +156,17 @@ int main(void)
 			int len = PPP_stuff(gl_msg_buf, msg_len, gl_ppp_stuff_buf, sizeof(gl_ppp_stuff_buf));	//double stuff the buffer! AAAH
 			m_uart_tx_start(&m_huart1, gl_ppp_stuff_buf, len);
 		}
+
+		//checksum check is imlpemented in handler
 		if(gl_reply_received)
 		{
-			if(m_huart1.ppp_unstuff_buf[0] == MASTER_ADDRESS)
+			if(m_huart1.ppp_unstuff_buf[0] == MASTER_MOTOR_ADDRESS)
 			{
 				parse_motor_message_reply(m_huart1.ppp_unstuff_buf, m_huart1.ppp_unstuffed_size, &gl_motors[0]);
+			}
+			else if(m_huart1.ppp_unstuff_buf[0] == MASTER_MISC_ADDRESS)
+			{
+				//parse misc message reply
 			}
 		}
 
