@@ -129,7 +129,9 @@ void m_uart_it_handler(uart_it_t * h, void (*idle_callback)(uart_it_t * h), void
 			h->rx_buf[h->rx_idx++] = nb;
 		h->ppp_unstuffed_size = parse_PPP_stream(nb, h->ppp_unstuff_buf, sizeof(h->ppp_unstuff_buf), h->ppp_rx_buf, sizeof(h->ppp_rx_buf), &h->ppp_bidx);
 		if(h->ppp_unstuffed_size > 0)
+		{
 			(*ppp_callback)(h);
+		}
 	}
 	if(idle != 0)	//if idle line is detected
 	{
@@ -149,9 +151,13 @@ void m_uart_it_handler(uart_it_t * h, void (*idle_callback)(uart_it_t * h), void
 		h->Instance->CR1 &= ~TXEIE;	//be sure to cancel tx interrupts if you don't want to tx, otherwise they'll trigger an interrupt storm
 	}
 
-	if(tc != 0 && h->rs485_gpio_port != NULL)
+	if(tc != 0)
 	{
-		HAL_GPIO_WritePin(h->rs485_gpio_port, h->rs485_gpio_pin, 0);
+		h->tx_cplt = 1;
+		if(h->rs485_gpio_port != NULL)
+		{
+			HAL_GPIO_WritePin(h->rs485_gpio_port, h->rs485_gpio_pin, 0);
+		}
 	}
 
 	h->Instance->ICR |=  ICR_CLEAR_ALL;	//clear all remaining interrupt flags to avoid a storm
@@ -168,4 +174,5 @@ void m_uart_tx_start(uart_it_t * h, uint8_t * buf, int size)
 	h->tx_buf = buf;
 	h->Instance->TDR = h->tx_buf[h->tx_idx++];
 	h->Instance->CR1 |= TXEIE;
+	h->tx_cplt = 0;
 }

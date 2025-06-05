@@ -41,6 +41,7 @@ typedef struct uart_it_t
 
 	GPIO_TypeDef * rs485_gpio_port;
 	uint16_t rs485_gpio_pin;
+	uint8_t tx_cplt;
 
 }uart_it_t;
 

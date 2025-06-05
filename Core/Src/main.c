@@ -116,6 +116,8 @@ int main(void)
 
 
 	gl_motors[0].fds.module_number = 0x03;
+
+	/*TODO: turn this into a generalized function that writes, modifies, reads, and confirms consistency*/
 	gl_rc = 1;
 	gl_motors[0].motor_command_mode = PCTL_VQ;
 	uart_write_struct_mem_ppp(&gl_motors[0].motor_command_mode, &gl_motors[0], sizeof(int32_t));
@@ -127,6 +129,7 @@ int main(void)
 	{
 		gl_rc = 0;
 	}
+
 //	uart_read_struct_mem_ppp(&gl_motors[0].mpctl_rotor_vq.kpki.kp.i32, &gl_motors[0], sizeof(int32_t)*4, 3000);
 //	HAL_Delay(1);
 //	gl_motors[0].mpctl_rotor_vq.kpki.kp.i32++;
