@@ -7,6 +7,32 @@
 #include "IIRsos.h"
 #include "m_mcpy.h"
 #include "sin-math.h"
+#include "serial-motor-comms.h"
+
+uint8_t gl_msg_buf[62] = {};
+uint8_t gl_reply_received = 0;
+
+/*This is the general comms handler*/
+void ppp_uart1_rx_cplt_callback(uart_it_t * h)
+{
+	if(h->ppp_unstuffed_size > NUM_BYTES_ADDRESS + NUM_BYTES_CHECKSUM)
+	{
+		int checksum_idx = h->ppp_unstuffed_size - sizeof(uint16_t);
+		uint16_t crc = get_crc16(h->ppp_unstuff_buf, checksum_idx);
+		uint16_t * p_checksum = (uint16_t*)(&h->ppp_unstuff_buf[checksum_idx]);
+		if(*p_checksum == crc)
+		{
+			gl_reply_received = 1;
+		}
+	}
+
+}
+
+
+void ppp_uart2_rx_cplt_callback(uart_it_t * h)
+{
+
+}
 
 int main(void)
 {
@@ -25,6 +51,8 @@ int main(void)
 
 	uint32_t led_ts = 0;
 	uint32_t uart_tx_ts = 0;
+
+	comms_t motor[1] = {};
 	while (1)
 	{
 		uint32_t tick = HAL_GetTick();
@@ -34,21 +62,13 @@ int main(void)
 		{
 			uart_tx_ts = tick;
 
-			//mode with 1 byte of padding, position, checksum
-			/*Blast out the motor data back to the person who asked us to move! client doesn't really need to parse it*/
-			uint8_t prestuff[3*sizeof(int32_t)+1*sizeof(int16_t)] = {0};	//motor1 pos, motor2 pos, fletcher's
-			/*
-			* Bytes 0,1,2,3 - motor1 position
-			* Bytes 4,5,6,7 - motor2 position
-			* Bytes 8,9,10,11 - time ms
-			 * Bytes 12,13: checksum16
-			 * */
-			int idx = 0;
-			int32_t * pbi32 = (int32_t*)(&prestuff[0]);
-			pbi32[idx++] = tick;
-
-			int len = PPP_stuff(prestuff, idx*sizeof(int32_t), gl_ppp_stuff_buf, sizeof(gl_ppp_stuff_buf));	//double stuff the buffer! AAAH
+			int msg_len = create_motor_command(0x03, 1000, gl_msg_buf, sizeof(gl_msg_buf));
+			int len = PPP_stuff(gl_msg_buf, msg_len, gl_ppp_stuff_buf, sizeof(gl_ppp_stuff_buf));	//double stuff the buffer! AAAH
 			m_uart_tx_start(&m_huart1, gl_ppp_stuff_buf, len);
+		}
+		if(gl_reply_received)
+		{
+			parse_motor_message_reply(m_huart1.ppp_unstuff_buf, m_huart1.ppp_unstuffed_size, &motor[0]);
 		}
 
 		/*LED blink*/

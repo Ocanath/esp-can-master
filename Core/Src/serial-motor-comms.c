@@ -102,9 +102,9 @@ INPUTS: address of motor
 Returns:
 	number of bytes written to msg
 */
-int create_motor_command(unsigned char motor_address, int32_t command_word, unsigned char * msg, int msg_len)
+int create_motor_command(unsigned char motor_address, int32_t command_word, unsigned char * msg, int msg_size)
 {
-	if(msg_len < NUM_BYTES_ADDRESS+sizeof(int32_t)+NUM_BYTES_CHECKSUM)
+	if(msg_size < NUM_BYTES_ADDRESS+sizeof(int32_t)+NUM_BYTES_CHECKSUM)
 	{
 		return ERROR_INVALID_ARGUMENT;
 	}
