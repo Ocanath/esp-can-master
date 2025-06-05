@@ -76,13 +76,17 @@ int uart_read_struct_word_ppp(void * pword, comms_t * pcomms, size_t size, uint3
 			{
 				gl_reply_received = 0;
 				update_comms_with_read_reply(pword, pcomms, m_huart1.ppp_unstuff_buf, m_huart1.ppp_unstuffed_size);
+				return SUCCESS;
 			}
-			return 0;
+			else	//timeout
+			{
+				return ERROR_TIMEOUT;	//timeout error message
+			}
 		}
 		else
 		{
 			//TODO: implement this
-			return 0;
+			return SUCCESS;
 		}
 	}
 	else
