@@ -57,7 +57,7 @@ int uart_write_struct_mem_ppp(void * pword, comms_t * pcomms, size_t size)
 }
 
 
-int uart_read_struct_word_ppp(void * pword, comms_t * pcomms, size_t size, uint32_t timeout)
+int uart_read_struct_mem_ppp(void * pword, comms_t * pcomms, size_t size, uint32_t timeout)
 {
 	if(size % sizeof(uint32_t) != 0)	//it's fine to pass a sizeof() param, but we gotta make sure it's a multiple of 4 for this to play nice with the message protocol
 	{
@@ -71,7 +71,7 @@ int uart_read_struct_word_ppp(void * pword, comms_t * pcomms, size_t size, uint3
 			int len = PPP_stuff(gl_msg_buf, msg_len, gl_ppp_stuff_buf, sizeof(gl_ppp_stuff_buf));	//double stuff the buffer! AAAH
 			m_uart_tx_start(&m_huart1, gl_ppp_stuff_buf, len);
 			uint32_t wait_start = HAL_GetTick();
-			while(gl_reply_received == 0 || (HAL_GetTick() - wait_start) < timeout);
+			while(gl_reply_received == 0 && (HAL_GetTick() - wait_start) < timeout);
 			if(gl_reply_received)
 			{
 				gl_reply_received = 0;
@@ -92,7 +92,9 @@ int uart_read_struct_word_ppp(void * pword, comms_t * pcomms, size_t size, uint3
 	else
 		return msg_len;
 }
-comms_t gl_motors[1] = {};
+
+comms_t gl_motors[2] = {};
+
 int main(void)
 {
  	HAL_Init();
@@ -113,7 +115,15 @@ int main(void)
 
 
 	gl_motors[0].fds.module_number = 0x03;
-	uart_read_struct_word_ppp(&gl_motors[0].mpctl_rotor_vq.kpki.kp.i32, &gl_motors[0], sizeof(int32_t), 3000);
+	uart_read_struct_mem_ppp(&gl_motors[0].mpctl_rotor_vq.kpki.kp.i32, &gl_motors[0], sizeof(int32_t)*4, 3000);
+	HAL_Delay(1);
+	gl_motors[0].mpctl_rotor_vq.kpki.kp.i32++;
+	gl_motors[0].mpctl_rotor_vq.kpki.kp.radix--;
+	gl_motors[0].mpctl_rotor_vq.kpki.ki.i32++;
+	gl_motors[0].mpctl_rotor_vq.kpki.ki.radix--;
+	uart_write_struct_mem_ppp(&gl_motors[0].mpctl_rotor_vq, &gl_motors[0], sizeof(int32_t)*4);
+	HAL_Delay(1);
+	uart_read_struct_mem_ppp(&gl_motors[0].mpctl_rotor_vq.kpki.kp.i32, &gl_motors[0], sizeof(int32_t)*4, 3000);
 
 	while (1)
 	{
