@@ -116,19 +116,24 @@ int main(void)
 
 
 	gl_motors[0].fds.module_number = 0x03;
+	gl_motors[1].fds.module_number = 0x04;
 
-	/*TODO: turn this into a generalized function that writes, modifies, reads, and confirms consistency*/
-	gl_rc = 1;
-	gl_motors[0].motor_command_mode = PCTL_VQ;
-	uart_write_struct_mem_ppp(&gl_motors[0].motor_command_mode, &gl_motors[0], sizeof(int32_t));
-	HAL_Delay(1);
-	gl_motors[0].motor_command_mode++;
-	int rc = uart_read_struct_mem_ppp(&gl_motors[0].motor_command_mode, &gl_motors[0], sizeof(int32_t), 3000);
-	HAL_Delay(1);
-	if(rc == SUCCESS && gl_motors[0].motor_command_mode == PCTL_VQ)
-	{
-		gl_rc = 0;
-	}
+
+
+
+
+//	/*TODO: turn this into a generalized function that writes, modifies, reads, and confirms consistency*/
+//	gl_rc = 1;
+//	gl_motors[0].motor_command_mode = PCTL_VQ;
+//	uart_write_struct_mem_ppp(&gl_motors[0].motor_command_mode, &gl_motors[0], sizeof(int32_t));
+//	HAL_Delay(1);
+//	gl_motors[0].motor_command_mode++;
+//	int rc = uart_read_struct_mem_ppp(&gl_motors[0].motor_command_mode, &gl_motors[0], sizeof(int32_t), 3);
+//	HAL_Delay(1);
+//	if(rc == SUCCESS && gl_motors[0].motor_command_mode == PCTL_VQ)
+//	{
+//		gl_rc = 0;
+//	}
 
 //	uart_read_struct_mem_ppp(&gl_motors[0].mpctl_rotor_vq.kpki.kp.i32, &gl_motors[0], sizeof(int32_t)*4, 3000);
 //	HAL_Delay(1);
@@ -141,33 +146,44 @@ int main(void)
 //	uart_read_struct_mem_ppp(&gl_motors[0].mpctl_rotor_vq.kpki.kp.i32, &gl_motors[0], sizeof(int32_t)*4, 3000);
 
 
-
-
+	int motor_index = 0;
+	uint8_t reply_pending = 0;	//
 	while (1)
 	{
 		uint32_t tick = HAL_GetTick();
 
-		/*Handle comms*/
-		if(tick - uart_tx_ts > 5)
+//		gl_motors[0].command_word = 1000;
+//		gl_motors[1].command_word = -1000;
+
+
+		/*Handle write*/
+		if(reply_pending == 0)
 		{
 			uart_tx_ts = tick;
-
-			int msg_len = create_motor_command(0x03, 1000, gl_msg_buf, sizeof(gl_msg_buf));
+			int msg_len = create_motor_command(gl_motors[motor_index].fds.module_number, gl_motors[motor_index].command_word, gl_msg_buf, sizeof(gl_msg_buf));
 			int len = PPP_stuff(gl_msg_buf, msg_len, gl_ppp_stuff_buf, sizeof(gl_ppp_stuff_buf));	//double stuff the buffer! AAAH
 			m_uart_tx_start(&m_huart1, gl_ppp_stuff_buf, len);
+			reply_pending = 1;
 		}
-
-		//checksum check is imlpemented in handler
+		/*handle read*/
 		if(gl_reply_received)
 		{
+			reply_pending = 0;
+			gl_reply_received = 0;
 			if(m_huart1.ppp_unstuff_buf[0] == MASTER_MOTOR_ADDRESS)
 			{
-				parse_motor_message_reply(m_huart1.ppp_unstuff_buf, m_huart1.ppp_unstuffed_size, &gl_motors[0]);
+				parse_motor_message_reply(m_huart1.ppp_unstuff_buf, m_huart1.ppp_unstuffed_size, &gl_motors[motor_index]);
+				motor_index = (motor_index + 1) % (sizeof(gl_motors)/sizeof(comms_t));
 			}
 			else if(m_huart1.ppp_unstuff_buf[0] == MASTER_MISC_ADDRESS)
 			{
 				//parse misc message reply
 			}
+		}
+		else if((tick - uart_tx_ts) > 1 && reply_pending != 0)	//read timeout
+		{
+			motor_index = (motor_index + 1) % (sizeof(gl_motors)/sizeof(comms_t));
+			reply_pending = 0;
 		}
 
 		/*LED blink*/
