@@ -37,7 +37,7 @@ void ppp_uart2_rx_cplt_callback(uart_it_t * h)
 }
 
 
-int uart_write_struct_mem_ppp(void * pword, comms_t * pcomms, size_t size)
+int uart_write_struct_mem_ppp(void * pword, comms_t * pcomms, size_t size, uint32_t timeout)
 {
 	int msg_len = create_write_struct_mem_message(pword, size, pcomms, gl_msg_buf, sizeof(gl_msg_buf));
 	if(msg_len > 0)
@@ -46,6 +46,8 @@ int uart_write_struct_mem_ppp(void * pword, comms_t * pcomms, size_t size)
 		{
 			int len = PPP_stuff(gl_msg_buf, msg_len, gl_ppp_stuff_buf, sizeof(gl_ppp_stuff_buf));	//double stuff the buffer! AAAH
 			m_uart_tx_start(&m_huart1, gl_ppp_stuff_buf, len);
+			uint32_t wait_start = HAL_GetTick();
+			while(gl_reply_received == 0 && (HAL_GetTick() - wait_start) < timeout);
 		}
 		else
 		{
@@ -95,6 +97,7 @@ int uart_read_struct_mem_ppp(void * pword, comms_t * pcomms, size_t size, uint32
 }
 
 comms_t gl_motors[2] = {};
+uint32_t prev_command_mode[sizeof(gl_motors)/sizeof(comms_t)];
 
 int main(void)
 {
@@ -123,17 +126,17 @@ int main(void)
 
 
 //	/*TODO: turn this into a generalized function that writes, modifies, reads, and confirms consistency*/
-//	gl_rc = 1;
-//	gl_motors[0].motor_command_mode = PCTL_VQ;
-//	uart_write_struct_mem_ppp(&gl_motors[0].motor_command_mode, &gl_motors[0], sizeof(int32_t));
-//	HAL_Delay(1);
-//	gl_motors[0].motor_command_mode++;
-//	int rc = uart_read_struct_mem_ppp(&gl_motors[0].motor_command_mode, &gl_motors[0], sizeof(int32_t), 3);
-//	HAL_Delay(1);
-//	if(rc == SUCCESS && gl_motors[0].motor_command_mode == PCTL_VQ)
-//	{
-//		gl_rc = 0;
-//	}
+	gl_rc = 1;
+	gl_motors[0].motor_command_mode = PCTL_VQ;
+	uart_write_struct_mem_ppp(&gl_motors[0].motor_command_mode, &gl_motors[0], sizeof(int32_t), 1);
+	HAL_Delay(1);
+	gl_motors[0].motor_command_mode++;
+	int rc = uart_read_struct_mem_ppp(&gl_motors[0].motor_command_mode, &gl_motors[0], sizeof(int32_t), 3);
+	HAL_Delay(1);
+	if(rc == SUCCESS && gl_motors[0].motor_command_mode == PCTL_VQ)
+	{
+		gl_rc = 0;
+	}
 
 //	uart_read_struct_mem_ppp(&gl_motors[0].mpctl_rotor_vq.kpki.kp.i32, &gl_motors[0], sizeof(int32_t)*4, 3000);
 //	HAL_Delay(1);
@@ -148,9 +151,12 @@ int main(void)
 
 	int motor_index = 0;
 	uint8_t reply_pending = 0;	//
+	uint32_t misc_read_ts = 0;
+
 	while (1)
 	{
 		uint32_t tick = HAL_GetTick();
+
 
 //		gl_motors[0].command_word = 1000;
 //		gl_motors[1].command_word = -1000;
@@ -184,6 +190,23 @@ int main(void)
 		{
 			motor_index = (motor_index + 1) % (sizeof(gl_motors)/sizeof(comms_t));
 			reply_pending = 0;
+		}
+
+		if(tick - misc_read_ts > 1 && reply_pending == 0)
+		{
+			misc_read_ts = tick;
+			uart_read_struct_mem_ppp(&gl_motors[0].foc.gl_id, &gl_motors[0], sizeof(int32_t), 1);
+			uart_read_struct_mem_ppp(&gl_motors[1].foc.gl_id, &gl_motors[1], sizeof(int32_t), 1);
+
+			for(int i = 0; i < sizeof(gl_motors)/sizeof(comms_t); i++)
+			{
+				if(gl_motors[i].motor_command_mode != prev_command_mode[i])
+				{
+					//write, but don't bother to read
+					uart_write_struct_mem_ppp(&gl_motors[i].motor_command_mode, &gl_motors[i], sizeof(int32_t), 1);
+					prev_command_mode[i] = gl_motors[i].motor_command_mode;
+				}
+			}
 		}
 
 		/*LED blink*/
