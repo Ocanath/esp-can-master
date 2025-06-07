@@ -77,7 +77,12 @@ const comms_t default_comms_t =
 					.radix = 5
 			},
 			.out_sat = 2047,
-	}
+	},
+	.motor_command_mode = 0,
+	.write_filesystem_flag = 0,
+	.command_word = 0,
+	.open_loop_vd = 350,
+	.command_timeout = 500
 };
 
 comms_t gl_mem = {};

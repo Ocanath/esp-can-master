@@ -9,7 +9,7 @@
 #include "sin-math.h"
 #include "serial-motor-comms.h"
 
-uint8_t gl_msg_buf[62] = {};
+uint8_t gl_msg_buf[60] = {};
 uint8_t gl_reply_received = 0;
 uint8_t gl_use_ppp = 1;
 uint8_t gl_rc = 0;	//for dbugging, rc that can't get optimtized out
@@ -46,8 +46,10 @@ int uart_write_struct_mem_ppp(void * pword, comms_t * pcomms, size_t size, uint3
 		{
 			int len = PPP_stuff(gl_msg_buf, msg_len, gl_ppp_stuff_buf, sizeof(gl_ppp_stuff_buf));	//double stuff the buffer! AAAH
 			m_uart_tx_start(&m_huart1, gl_ppp_stuff_buf, len);
+
 			uint32_t wait_start = HAL_GetTick();
-			while(gl_reply_received == 0 && (HAL_GetTick() - wait_start) < timeout);
+			while(m_huart1.tx_cplt == 0 && HAL_GetTick() - wait_start < timeout);
+//			while(gl_reply_received == 0 && (HAL_GetTick() - wait_start) < timeout);
 		}
 		else
 		{
@@ -95,10 +97,22 @@ int uart_read_struct_mem_ppp(void * pword, comms_t * pcomms, size_t size, uint32
 	else
 		return msg_len;
 }
+/*
+ * Saturate output
+ * */
+int32_t saturate(int32_t v, int32_t sat)
+{
+	if(v > sat)
+		return sat;
+	if(v < -sat)
+		return -sat;
+	return v;
+}
 
 comms_t gl_motors[2] = {};
 uint32_t prev_command_mode[sizeof(gl_motors)/sizeof(comms_t)];
-
+uint8_t gl_do_pctl = 0;
+int32_t pctl_targs[sizeof(gl_motors)/sizeof(comms_t)] = {0};
 int main(void)
 {
  	HAL_Init();
@@ -152,15 +166,51 @@ int main(void)
 	int motor_index = 0;
 	uint8_t reply_pending = 0;	//
 	uint32_t misc_read_ts = 0;
-
+	uint32_t wifi_publish_ts = 0;
 	while (1)
 	{
 		uint32_t tick = HAL_GetTick();
+		if(tick - wifi_publish_ts > 10)
+		{
+			wifi_publish_ts = tick;
 
+			int32_t * pmsgbuf = (int32_t*)(gl_msg_buf);
+			int idx = 0;
+			pmsgbuf[idx++] = gl_motors[0].foc.gl_iq;
+			pmsgbuf[idx++] = gl_motors[1].foc.gl_iq;
+//			pmsgbuf[idx++] = gl_motors[0].foc.gl_theta_rem_m;
+//			pmsgbuf[idx++] = gl_motors[1].foc.gl_theta_rem_m;
+			pmsgbuf[idx++] = tick;
+
+			int len = PPP_stuff(gl_msg_buf, idx*sizeof(int32_t), gl_ppp_stuff_buf, sizeof(gl_ppp_stuff_buf));
+			m_uart_tx_start(&m_huart2, gl_ppp_stuff_buf, len);
+		}
 
 //		gl_motors[0].command_word = 1000;
 //		gl_motors[1].command_word = -1000;
+		if(gl_do_pctl)
+		{
+//			for(int i = 0; i < sizeof(gl_motors)/sizeof(comms_t); i++)
+//			{
+				gl_motors[0].motor_command_mode = 0;
+				gl_motors[1].motor_command_mode = 0;
 
+				int32_t iq = (int32_t)(((int64_t)pctl_targs[0] - (int64_t)gl_motors[0].foc.gl_theta_rem_m)/10);
+				iq = saturate(iq,1000);
+				if(iq > 0)
+				{
+					gl_motors[0].command_word = iq;
+					gl_motors[1].command_word = 0;
+				}
+				else
+				{
+					gl_motors[0].command_word = 0;
+					gl_motors[1].command_word = -iq;
+				}
+//				gl_motors[0].command_word = iq;
+//				gl_motors[1].command_word = -iq;
+//			}
+		}
 
 		/*Handle write*/
 		if(reply_pending == 0)

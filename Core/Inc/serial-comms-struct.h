@@ -22,7 +22,8 @@ typedef struct comms_t
     uint32_t write_filesystem_flag;	//flag to trigger a write to the filesystem, updating settings contained in fds
 
     int32_t command_word;	//context-dependent command word. I.e. if motor_command_mode is in FOC mode, it gets parsed as q-axis current, if in position, it's qd_rotor, etc.
-
+    int32_t open_loop_vd;	//open loop control vd voltage/armature lock voltage
+    uint32_t command_timeout;
 } comms_t;
 
 
