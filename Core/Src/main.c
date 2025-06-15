@@ -41,7 +41,10 @@ void ppp_uart1_rx_cplt_callback(uart_it_t * h)
 
 void ppp_uart2_rx_cplt_callback(uart_it_t * h)
 {
-
+	//general structure:
+	//header (32bit, just for us to filter messages):
+	//payload	(packed motor command)
+	//checksum
 }
 
 
@@ -57,7 +60,6 @@ int uart_write_struct_mem_ppp(void * pword, comms_t * pcomms, size_t size, uint3
 
 			uint32_t wait_start = HAL_GetTick();
 			while(m_huart1.tx_cplt == 0 && HAL_GetTick() - wait_start < timeout);
-//			while(gl_reply_received == 0 && (HAL_GetTick() - wait_start) < timeout);
 		}
 		else
 		{
@@ -184,14 +186,17 @@ int main(void)
 		{
 			wifi_publish_ts = tick;
 
-			int32_t * pmsgbuf = (int32_t*)(gl_msg.buf);
+			gl_msg.len = 0;
+			gl_msg.buf[gl_msg.len++] = 'f';
+			gl_msg.buf[gl_msg.len++] = 'u';
+			gl_msg.buf[gl_msg.len++] = 'c';
+			gl_msg.buf[gl_msg.len++] = 'k';
+			int32_t * pmsgbuf = (int32_t*)(&gl_msg.buf[gl_msg.len]);
 			int idx = 0;
 			pmsgbuf[idx++] = gl_motors[0].foc.gl_iq;
 			pmsgbuf[idx++] = gl_motors[1].foc.gl_iq;
-//			pmsgbuf[idx++] = gl_motors[0].foc.gl_theta_rem_m;
-//			pmsgbuf[idx++] = gl_motors[1].foc.gl_theta_rem_m;
 			pmsgbuf[idx++] = tick;
-			gl_msg.len = idx*sizeof(int32_t);
+			gl_msg.len += (idx*sizeof(int32_t));
 			int len = PPP_stuff(gl_msg.buf, gl_msg.len, gl_ppp_stuff_buf, sizeof(gl_ppp_stuff_buf));
 			m_uart_tx_start(&m_huart2, gl_ppp_stuff_buf, len);
 		}

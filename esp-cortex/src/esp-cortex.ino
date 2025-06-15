@@ -22,6 +22,7 @@ Tested with 3.0.3 esp32 arduino board package by Espressif Systems.
 enum {PERIOD_CONNECTED = 50, PERIOD_DISCONNECTED = 1000};
 
 WiFiUDP udp;
+IPAddress server_address; //note: may want to change to our local IP, to support multiple devices on the network
 
 
 void setup() {
@@ -53,6 +54,8 @@ void setup() {
   else {
     Serial.printf("Connected to network %s\r\n", (const char *)gl_prefs.ssid);
   }
+  udp.begin(server_address, gl_prefs.port);
+  server_address = IPAddress((uint32_t)IPV4_ADDR_ANY);
 }
 
 
@@ -75,353 +78,348 @@ uint8_t gl_unstuffing_buffer[UNSTUFFING_BUFFER_SIZE] = {0};
 uint8_t gl_pld_buffer[PAYLOAD_BUFFER_SIZE] = {0};
 
 
+// put your main code here, to run repeatedly:
+uint32_t led_ts = 0;
+uint8_t led_state = 1;
+uint8_t stm32_enabled = 0;
+uint32_t blink_per = PERIOD_DISCONNECTED;
+uint8_t udp_pkt_buf[256] = {0};
+int ppp_stuffing_bidx = 0;
+
 void loop() 
 {
 
-  IPAddress server_address((uint32_t)IPV4_ADDR_ANY); //note: may want to change to our local IP, to support multiple devices on the network
-  udp.begin(server_address, gl_prefs.port);
 
-  // put your main code here, to run repeatedly:
-  uint32_t led_ts = 0;
-  uint8_t led_state = 1;
-  uint8_t stm32_enabled = 0;
-  uint32_t blink_per = PERIOD_DISCONNECTED;
-  uint8_t udp_pkt_buf[256] = {0};
-  int ppp_stuffing_bidx = 0;
+  uint32_t ts = millis();
 
-  while(1)
+  int len = udp.parsePacket();
+  if(len != 0)
   {
-    uint32_t ts = millis();
-
-    int len = udp.parsePacket();
-    if(len != 0)
+    int len = udp.read(udp_pkt_buf,255);
+    
+    int cmp = -1;
+    cmp = cmd_match((const char *)udp_pkt_buf,"WHO_GOES_THERE");
+    if(cmp > 0)
     {
-      int len = udp.read(udp_pkt_buf,255);
-      
-      int cmp = -1;
-      cmp = cmd_match((const char *)udp_pkt_buf,"WHO_GOES_THERE");
-      if(cmp > 0)
-      {
-        int len = strlen(gl_prefs.name);
-        udp.beginPacket(udp.remoteIP(),udp.remotePort()+gl_prefs.reply_offset);
-        udp.write((uint8_t*)gl_prefs.name,len);
-        udp.endPacket();
-      }
-	  cmp = cmd_match((const char *)udp_pkt_buf,"SPAM_ME");
-      if(cmp > 0)
-      {
-        int len = strlen(gl_prefs.name);
-        udp.beginPacket(udp.remoteIP(),udp.remotePort()+gl_prefs.reply_offset);
-        udp.write((uint8_t*)"WAZZAAAP",8);
-        udp.endPacket();
-      }
-      
-      Serial2.write(udp_pkt_buf,len);
-      for(int i = 0; i < len; i++)
-        udp_pkt_buf[i] = 0;
+      int len = strlen(gl_prefs.name);
+      udp.beginPacket(udp.remoteIP(),udp.remotePort()+gl_prefs.reply_offset);
+      udp.write((uint8_t*)gl_prefs.name,len);
+      udp.endPacket();
     }
-
-    uint8_t serial_pkt_sent = 0;
-    while(Serial2.available())
+  cmp = cmd_match((const char *)udp_pkt_buf,"SPAM_ME");
+    if(cmp > 0)
     {
-       uint8_t new_byte = Serial2.read();
-       int pld_len = parse_PPP_stream(new_byte, gl_pld_buffer, PAYLOAD_BUFFER_SIZE, gl_unstuffing_buffer, UNSTUFFING_BUFFER_SIZE, &ppp_stuffing_bidx);
-       if(pld_len != 0)
-       {
-          if(gl_prefs.en_fixed_target == 0)
-          {
-            udp.beginPacket(udp.remoteIP(), udp.remotePort()+gl_prefs.reply_offset);
-          }
-          else
-          {
-            IPAddress remote_ip(gl_prefs.remote_target_ip);
-            udp.beginPacket(remote_ip, gl_prefs.port+gl_prefs.reply_offset);
-          }
-          udp.write((uint8_t*)gl_pld_buffer, pld_len);
-          udp.endPacket();      
-          serial_pkt_sent = 1;
-       }
+      int len = strlen(gl_prefs.name);
+      udp.beginPacket(udp.remoteIP(),udp.remotePort()+gl_prefs.reply_offset);
+      udp.write((uint8_t*)"WAZZAAAP",8);
+      udp.endPacket();
     }
-	
-    get_console_lines();
-    if(gl_console_cmd.parsed == 0)
-    {
-      uint8_t match = 0;
-      uint8_t save = 0;
-      int cmp = -1;
+    
+    Serial2.write(udp_pkt_buf,len);
+    for(int i = 0; i < len; i++)
+      udp_pkt_buf[i] = 0;
+  }
 
-      //////////////////////////////////////////////////////////////////////////////////////////////////////
-      cmp = strcmp((const char *)gl_console_cmd.buf,"ipconfig\r");
-      if(cmp == 0)
+  uint8_t serial_pkt_sent = 0;
+  while(Serial2.available())
+  {
+      uint8_t new_byte = Serial2.read();
+      int pld_len = parse_PPP_stream(new_byte, gl_pld_buffer, PAYLOAD_BUFFER_SIZE, gl_unstuffing_buffer, UNSTUFFING_BUFFER_SIZE, &ppp_stuffing_bidx);
+      if(pld_len != 0)
       {
-        match = 1;
-        if(WiFi.status() == WL_CONNECTED)
+        if(gl_prefs.en_fixed_target == 0)
         {
-          Serial.printf("Connected to: %s\r\n", gl_prefs.ssid);
+          udp.beginPacket(udp.remoteIP(), udp.remotePort()+gl_prefs.reply_offset);
         }
         else
         {
-          Serial.printf("Not connected to: %s\r\n", gl_prefs.ssid);
+          IPAddress remote_ip(gl_prefs.remote_target_ip);
+          udp.beginPacket(remote_ip, gl_prefs.port+gl_prefs.reply_offset);
         }
-        Serial.printf("UDP server on port: %d\r\n", gl_prefs.port);
-        Serial.printf("Server Response Offset: %d\r\n", gl_prefs.reply_offset);
-        Serial.printf("IP address is: %s\r\n", WiFi.localIP().toString().c_str());
-		
+        udp.write((uint8_t*)gl_pld_buffer, pld_len);
+        udp.endPacket();      
+        serial_pkt_sent = 1;
       }
+  }
 
-      //////////////////////////////////////////////////////////////////////////////////////////////////////
-      cmp = cmd_match((const char *)gl_console_cmd.buf,"udpconfig\r");
-      if(cmp > 0)
+  get_console_lines();
+  if(gl_console_cmd.parsed == 0)
+  {
+    uint8_t match = 0;
+    uint8_t save = 0;
+    int cmp = -1;
+
+    //////////////////////////////////////////////////////////////////////////////////////////////////////
+    cmp = strcmp((const char *)gl_console_cmd.buf,"ipconfig\r");
+    if(cmp == 0)
+    {
+      match = 1;
+      if(WiFi.status() == WL_CONNECTED)
       {
-        match = 1;
-        Serial.printf("UDP server on port: %d\r\n", gl_prefs.port);
+        Serial.printf("Connected to: %s\r\n", gl_prefs.ssid);
       }
-      
-      //////////////////////////////////////////////////////////////////////////////////////////////////////
-      cmp = cmd_match((const char *)gl_console_cmd.buf,"setssid ");
-      if(cmp > 0)
+      else
       {
-        match = 1;
-        const char * arg = (const char *)(&gl_console_cmd.buf[cmp]);
-        /*Set the ssid*/
-        for(int i = 0; i < WIFI_MAX_SSID_LEN; i++)
-        {
-          gl_prefs.ssid[i] = '\0';
-        }
-        for(int i = 0; arg[i] != '\0'; i++)
-        {
-          if(arg[i] != '\r' && arg[i] != '\n')  //copy non carriage return characters
-          {
-            gl_prefs.ssid[i] = arg[i];
-          }
-        }
-        Serial.printf("Changing ssid to: %s\r\n", gl_prefs.ssid);
-        save = 1;
+        Serial.printf("Not connected to: %s\r\n", gl_prefs.ssid);
       }
-      //////////////////////////////////////////////////////////////////////////////////////////////////////
-      cmp = cmd_match((const char *)gl_console_cmd.buf,"setname ");
-      if(cmp > 0)
+      Serial.printf("UDP server on port: %d\r\n", gl_prefs.port);
+      Serial.printf("Server Response Offset: %d\r\n", gl_prefs.reply_offset);
+      Serial.printf("IP address is: %s\r\n", WiFi.localIP().toString().c_str());
+  
+    }
+
+    //////////////////////////////////////////////////////////////////////////////////////////////////////
+    cmp = cmd_match((const char *)gl_console_cmd.buf,"udpconfig\r");
+    if(cmp > 0)
+    {
+      match = 1;
+      Serial.printf("UDP server on port: %d\r\n", gl_prefs.port);
+    }
+    
+    //////////////////////////////////////////////////////////////////////////////////////////////////////
+    cmp = cmd_match((const char *)gl_console_cmd.buf,"setssid ");
+    if(cmp > 0)
+    {
+      match = 1;
+      const char * arg = (const char *)(&gl_console_cmd.buf[cmp]);
+      /*Set the ssid*/
+      for(int i = 0; i < WIFI_MAX_SSID_LEN; i++)
       {
-        match = 1;
-        const char * arg = (const char *)(&gl_console_cmd.buf[cmp]);
-        /*Set the ssid*/
-        for(int i = 0; i < DEVICE_NAME_LEN; i++)
-        {
-          gl_prefs.name[i] = '\0';
-        }
-        for(int i = 0; arg[i] != '\0'; i++)
-        {
-          if(arg[i] != '\r' && arg[i] != '\n')  //copy non carriage return characters
-          {
-            gl_prefs.name[i] = arg[i];
-          }
-        }
-        Serial.printf("Changing device name to: %s\r\n", gl_prefs.name);
-        save = 1;
+        gl_prefs.ssid[i] = '\0';
       }
-      //////////////////////////////////////////////////////////////////////////////////////////////////////
-      cmp = cmd_match((const char *)gl_console_cmd.buf,"settargetip ");
-      if(cmp > 0)
+      for(int i = 0; arg[i] != '\0'; i++)
       {
-        match = 1;
-        const char * arg = (const char *)(&gl_console_cmd.buf[cmp]);
-        char copy[15] = {0};
-        Serial.printf("Raw str arg: ");
-        for(int i = 0; arg[i] != 0 && arg[i] != '\r' && arg[i] != '\n'; i++)
+        if(arg[i] != '\r' && arg[i] != '\n')  //copy non carriage return characters
         {
-          copy[i] = arg[i];
-          Serial.printf("%0.2X",arg[i]);
+          gl_prefs.ssid[i] = arg[i];
         }
-        Serial.printf(": %s\r\n", copy);
-        IPAddress addr;
-        if(addr.fromString((const char *)copy) == true)
-          Serial.printf("Parsed IP address successfully\r\n");
-        else
-          Serial.printf("Invalid IP string entered\r\n");
-        gl_prefs.remote_target_ip = (uint32_t)addr;
-        Serial.printf("%X\r\n",gl_prefs.remote_target_ip);
+      }
+      Serial.printf("Changing ssid to: %s\r\n", gl_prefs.ssid);
+      save = 1;
+    }
+    //////////////////////////////////////////////////////////////////////////////////////////////////////
+    cmp = cmd_match((const char *)gl_console_cmd.buf,"setname ");
+    if(cmp > 0)
+    {
+      match = 1;
+      const char * arg = (const char *)(&gl_console_cmd.buf[cmp]);
+      /*Set the ssid*/
+      for(int i = 0; i < DEVICE_NAME_LEN; i++)
+      {
+        gl_prefs.name[i] = '\0';
+      }
+      for(int i = 0; arg[i] != '\0'; i++)
+      {
+        if(arg[i] != '\r' && arg[i] != '\n')  //copy non carriage return characters
+        {
+          gl_prefs.name[i] = arg[i];
+        }
+      }
+      Serial.printf("Changing device name to: %s\r\n", gl_prefs.name);
+      save = 1;
+    }
+    //////////////////////////////////////////////////////////////////////////////////////////////////////
+    cmp = cmd_match((const char *)gl_console_cmd.buf,"settargetip ");
+    if(cmp > 0)
+    {
+      match = 1;
+      const char * arg = (const char *)(&gl_console_cmd.buf[cmp]);
+      char copy[15] = {0};
+      Serial.printf("Raw str arg: ");
+      for(int i = 0; arg[i] != 0 && arg[i] != '\r' && arg[i] != '\n'; i++)
+      {
+        copy[i] = arg[i];
+        Serial.printf("%0.2X",arg[i]);
+      }
+      Serial.printf(": %s\r\n", copy);
+      IPAddress addr;
+      if(addr.fromString((const char *)copy) == true)
+        Serial.printf("Parsed IP address successfully\r\n");
+      else
+        Serial.printf("Invalid IP string entered\r\n");
+      gl_prefs.remote_target_ip = (uint32_t)addr;
+      Serial.printf("%X\r\n",gl_prefs.remote_target_ip);
+      IPAddress parseconfirm(gl_prefs.remote_target_ip);
+      Serial.printf("Target IP: %s\r\n", parseconfirm.toString().c_str());
+      save = 1;
+    }
+    //////////////////////////////////////////////////////////////////////////////////////////////////////
+    /*
+      Usage:
+        fixedtarget enable
+        fixedtarget disable
+      */
+    cmp = cmd_match((const char *)gl_console_cmd.buf,"fixedtarget ");
+    if(cmp > 0)
+    {
+      match = 1;
+      const char * arg = (const char *)(&gl_console_cmd.buf[cmp]);
+      int argcmp = cmd_match( arg, "enable");
+      if(argcmp > 0)
+      {
+        gl_prefs.en_fixed_target = 1;
         IPAddress parseconfirm(gl_prefs.remote_target_ip);
-        Serial.printf("Target IP: %s\r\n", parseconfirm.toString().c_str());
-        save = 1;
+        Serial.printf("Enabling Fixed Target: %s\r\n", parseconfirm.toString().c_str());
       }
-      //////////////////////////////////////////////////////////////////////////////////////////////////////
-      /*
-        Usage:
-          fixedtarget enable
-          fixedtarget disable
-       */
-      cmp = cmd_match((const char *)gl_console_cmd.buf,"fixedtarget ");
-      if(cmp > 0)
+      argcmp = cmd_match( arg, "disable");
+      if(argcmp > 0)
       {
-        match = 1;
-        const char * arg = (const char *)(&gl_console_cmd.buf[cmp]);
-        int argcmp = cmd_match( arg, "enable");
-        if(argcmp > 0)
+        gl_prefs.en_fixed_target = 0;
+        Serial.printf("Disabling Fixed Target\r\n");
+      }
+      save = 1;
+    }
+
+    //////////////////////////////////////////////////////////////////////////////////////////////////////
+    cmp = cmd_match((const char *)gl_console_cmd.buf,"setpwd ");
+    if(cmp > 0)
+    {
+      match = 1;
+      const char * arg = (const char *)(&gl_console_cmd.buf[cmp]);
+      /*Set the password*/
+      for(int i = 0; i < WIFI_MAX_PWD_LEN; i++)
+      {
+        gl_prefs.password[i] = '\0';
+      }
+      for(int i = 0; arg[i] != '\0'; i++)
+      {
+        if(arg[i] != '\r' && arg[i] != '\n')
         {
-          gl_prefs.en_fixed_target = 1;
-          IPAddress parseconfirm(gl_prefs.remote_target_ip);
-          Serial.printf("Enabling Fixed Target: %s\r\n", parseconfirm.toString().c_str());
+          gl_prefs.password[i] = arg[i];
         }
-        argcmp = cmd_match( arg, "disable");
-        if(argcmp > 0)
+      }
+      Serial.printf("Changing pwd to: %s\r\n",gl_prefs.password);
+      save = 1;
+    }
+
+    //////////////////////////////////////////////////////////////////////////////////////////////////////
+    cmp = cmd_match((const char *)gl_console_cmd.buf,"setport ");
+    if(cmp > 0)
+    {
+      match = 1;
+      const char * arg = (const char *)(&gl_console_cmd.buf[cmp]);
+      char * tmp;
+      int port = strtol(arg, &tmp, 10);
+      Serial.printf("Changing port to: %d\r\n",port);
+      /*Set the port*/
+      gl_prefs.port = port;
+      save = 1;
+    }
+  
+    //////////////////////////////////////////////////////////////////////////////////////////////////////
+    cmp = cmd_match((const char *)gl_console_cmd.buf,"setTXoff ");
+    if(cmp > 0)
+    {
+      match = 1;
+      const char * arg = (const char *)(&gl_console_cmd.buf[cmp]);
+      char * tmp;
+      int offset = strtol(arg, &tmp, 10);
+      Serial.printf("Setting port offset to: %d\r\n",offset);
+      gl_prefs.reply_offset = offset;
+      save = 1;
+    }	  
+
+    //////////////////////////////////////////////////////////////////////////////////////////////////////
+    cmp = cmd_match((const char *)gl_console_cmd.buf,"readcred");
+    if(cmp > 0)
+    {
+      match = 1;
+      Serial.printf("SSID: \'");
+      for(int i = 0; gl_prefs.ssid[i] != 0; i++)
+      {
+        char c = gl_prefs.ssid[i];
+        if(c >= 0x1f && c <= 0x7E)
         {
-          gl_prefs.en_fixed_target = 0;
-          Serial.printf("Disabling Fixed Target\r\n");
+          Serial.printf("%c",c);
         }
-        save = 1;
-      }
-
-      //////////////////////////////////////////////////////////////////////////////////////////////////////
-      cmp = cmd_match((const char *)gl_console_cmd.buf,"setpwd ");
-      if(cmp > 0)
-      {
-        match = 1;
-        const char * arg = (const char *)(&gl_console_cmd.buf[cmp]);
-        /*Set the password*/
-        for(int i = 0; i < WIFI_MAX_PWD_LEN; i++)
+        else
         {
-          gl_prefs.password[i] = '\0';
+          Serial.printf("%0.2X",c);
         }
-        for(int i = 0; arg[i] != '\0'; i++)
+      }
+      Serial.printf("\'\r\n");
+
+      Serial.printf("Password: \'");
+      for(int i = 0; gl_prefs.password[i] != 0; i++)
+      {
+        char c = gl_prefs.password[i];
+        if(c >= 0x1f && c <= 0x7E)
         {
-          if(arg[i] != '\r' && arg[i] != '\n')
-          {
-            gl_prefs.password[i] = arg[i];
-          }
+          Serial.printf("%c",c);
         }
-        Serial.printf("Changing pwd to: %s\r\n",gl_prefs.password);
-        save = 1;
-      }
-
-      //////////////////////////////////////////////////////////////////////////////////////////////////////
-      cmp = cmd_match((const char *)gl_console_cmd.buf,"setport ");
-      if(cmp > 0)
-      {
-        match = 1;
-        const char * arg = (const char *)(&gl_console_cmd.buf[cmp]);
-        char * tmp;
-        int port = strtol(arg, &tmp, 10);
-        Serial.printf("Changing port to: %d\r\n",port);
-        /*Set the port*/
-        gl_prefs.port = port;
-        save = 1;
-      }
-	  
-      //////////////////////////////////////////////////////////////////////////////////////////////////////
-      cmp = cmd_match((const char *)gl_console_cmd.buf,"setTXoff ");
-      if(cmp > 0)
-      {
-        match = 1;
-    		const char * arg = (const char *)(&gl_console_cmd.buf[cmp]);
-        char * tmp;
-        int offset = strtol(arg, &tmp, 10);
-		    Serial.printf("Setting port offset to: %d\r\n",offset);
-    		gl_prefs.reply_offset = offset;
-		    save = 1;
-	    }	  
-
-      //////////////////////////////////////////////////////////////////////////////////////////////////////
-      cmp = cmd_match((const char *)gl_console_cmd.buf,"readcred");
-      if(cmp > 0)
-      {
-        match = 1;
-        Serial.printf("SSID: \'");
-        for(int i = 0; gl_prefs.ssid[i] != 0; i++)
+        else
         {
-          char c = gl_prefs.ssid[i];
-          if(c >= 0x1f && c <= 0x7E)
-          {
-            Serial.printf("%c",c);
-          }
-          else
-          {
-            Serial.printf("%0.2X",c);
-          }
+          Serial.printf("%0.2X",c);
         }
-        Serial.printf("\'\r\n");
-
-        Serial.printf("Password: \'");
-        for(int i = 0; gl_prefs.password[i] != 0; i++)
-        {
-          char c = gl_prefs.password[i];
-          if(c >= 0x1f && c <= 0x7E)
-          {
-            Serial.printf("%c",c);
-          }
-          else
-          {
-            Serial.printf("%0.2X",c);
-          }
-        }
-        Serial.printf("\'\r\n");
       }
+      Serial.printf("\'\r\n");
+    }
 
-      //////////////////////////////////////////////////////////////////////////////////////////////////////
-      cmp = cmd_match((const char *)gl_console_cmd.buf,"reconnect\r");
-      if(cmp > 0)
-      {
-        match = 1;
-        Serial.printf("restarting wifi connection...\r\n");
-        /*Try to connect using modified ssid and password. for convenience, as a restart will fulfil the same functionality*/
-        WiFi.disconnect();
-        WiFi.begin((const char *)gl_prefs.ssid,(const char *)gl_prefs.password);
-        udp.begin(server_address, gl_prefs.port);
-      }
+    //////////////////////////////////////////////////////////////////////////////////////////////////////
+    cmp = cmd_match((const char *)gl_console_cmd.buf,"reconnect\r");
+    if(cmp > 0)
+    {
+      match = 1;
+      Serial.printf("restarting wifi connection...\r\n");
+      /*Try to connect using modified ssid and password. for convenience, as a restart will fulfil the same functionality*/
+      WiFi.disconnect();
+      WiFi.begin((const char *)gl_prefs.ssid,(const char *)gl_prefs.password);
+      udp.begin(server_address, gl_prefs.port);
+    }
 
-      //////////////////////////////////////////////////////////////////////////////////////////////////////
-      cmp = cmd_match((const char *)gl_console_cmd.buf,"restart\r");
-      if(cmp > 0)
-      {
-        Serial.printf("restarting chip...\r\n");
-        ESP.restart();
-      }
-
-
-
-
-      /********************************Parsing over, cleanup*************************************/
-      if(match == 0)
-      {
-        Serial.printf("Failed to parse: %s\r\n", gl_console_cmd.buf);
-      }
-      if(save != 0)
-      {
-        int nb = preferences.putBytes("settings", &gl_prefs, sizeof(nvs_settings_t));
-        Serial.printf("Saved %d bytes\r\n", nb);
-      }
-
-      for(int i = 0; i < BUFFER_SIZE; i++)
-      {
-        gl_console_cmd.buf[i] = 0; 
-      }
-      gl_console_cmd.parsed = 1;
+    //////////////////////////////////////////////////////////////////////////////////////////////////////
+    cmp = cmd_match((const char *)gl_console_cmd.buf,"restart\r");
+    if(cmp > 0)
+    {
+      Serial.printf("restarting chip...\r\n");
+      ESP.restart();
     }
 
 
+
+
+    /********************************Parsing over, cleanup*************************************/
+    if(match == 0)
+    {
+      Serial.printf("Failed to parse: %s\r\n", gl_console_cmd.buf);
+    }
+    if(save != 0)
+    {
+      int nb = preferences.putBytes("settings", &gl_prefs, sizeof(nvs_settings_t));
+      Serial.printf("Saved %d bytes\r\n", nb);
+    }
+
+    for(int i = 0; i < BUFFER_SIZE; i++)
+    {
+      gl_console_cmd.buf[i] = 0; 
+    }
+    gl_console_cmd.parsed = 1;
+  }
+
+
+  if(WiFi.status() != WL_CONNECTED)
+  {
+    blink_per = PERIOD_DISCONNECTED;
+  }
+  else
+  {
+    blink_per = PERIOD_CONNECTED;
+  }
+
+
+  if(ts - led_ts > blink_per)
+  {
+    led_ts = ts;
+    digitalWrite(LED_PIN, led_state);
+    led_state = ~led_state & 1;
     if(WiFi.status() != WL_CONNECTED)
     {
-      blink_per = PERIOD_DISCONNECTED;
-    }
-    else
-    {
-      blink_per = PERIOD_CONNECTED;
-    }
-
-
-    if(ts - led_ts > blink_per)
-    {
-      led_ts = ts;
-      digitalWrite(LED_PIN, led_state);
-      led_state = ~led_state & 1;
-      if(WiFi.status() != WL_CONNECTED)
-      {
-        //WiFi.reconnect();
-        WiFi.disconnect();
-        WiFi.begin((const char *)gl_prefs.ssid,(const char *)gl_prefs.password);
-        udp.begin(server_address, gl_prefs.port);
-
-      }
+      //WiFi.reconnect();
+      WiFi.disconnect();
+      WiFi.begin((const char *)gl_prefs.ssid,(const char *)gl_prefs.password);
+      udp.begin(server_address, gl_prefs.port);
 
     }
+
   }
 }
