@@ -9,7 +9,14 @@
 #include "sin-math.h"
 #include "serial-motor-comms.h"
 
-uint8_t gl_msg_buf[60] = {};
+uint8_t gl_communication_buf[60] = {};
+buffer_t gl_msg = {
+		.buf = (unsigned char *)gl_communication_buf,
+		.size = sizeof(gl_communication_buf),
+		.len = 0
+};
+buffer_t gl_rx_unstuffed = {.buf = m_huart1.ppp_unstuff_buf, .size = sizeof(m_huart1.ppp_unstuff_buf), .len = 0};
+
 uint8_t gl_reply_received = 0;
 uint8_t gl_use_ppp = 1;
 uint8_t gl_rc = 0;	//for dbugging, rc that can't get optimtized out
@@ -19,6 +26,7 @@ void ppp_uart1_rx_cplt_callback(uart_it_t * h)
 {
 	if(h->ppp_unstuffed_size > NUM_BYTES_ADDRESS + NUM_BYTES_CHECKSUM)
 	{
+		gl_rx_unstuffed.len = h->ppp_unstuffed_size;
 		int checksum_idx = h->ppp_unstuffed_size - sizeof(uint16_t);
 		uint16_t crc = get_crc16(h->ppp_unstuff_buf, checksum_idx);
 		uint16_t * p_checksum = (uint16_t*)(&h->ppp_unstuff_buf[checksum_idx]);
@@ -39,12 +47,12 @@ void ppp_uart2_rx_cplt_callback(uart_it_t * h)
 
 int uart_write_struct_mem_ppp(void * pword, comms_t * pcomms, size_t size, uint32_t timeout)
 {
-	int msg_len = create_write_struct_mem_message(pword, size, pcomms, gl_msg_buf, sizeof(gl_msg_buf));
+	int msg_len = create_write_struct_mem_message(pword, size, pcomms, &gl_msg);
 	if(msg_len > 0)
 	{
 		if(gl_use_ppp != 0)
 		{
-			int len = PPP_stuff(gl_msg_buf, msg_len, gl_ppp_stuff_buf, sizeof(gl_ppp_stuff_buf));	//double stuff the buffer! AAAH
+			int len = PPP_stuff(gl_msg.buf, gl_msg.len, gl_ppp_stuff_buf, sizeof(gl_ppp_stuff_buf));	//double stuff the buffer! AAAH
 			m_uart_tx_start(&m_huart1, gl_ppp_stuff_buf, len);
 
 			uint32_t wait_start = HAL_GetTick();
@@ -53,7 +61,7 @@ int uart_write_struct_mem_ppp(void * pword, comms_t * pcomms, size_t size, uint3
 		}
 		else
 		{
-			m_uart_tx_start(&m_huart1, gl_msg_buf, msg_len);
+			m_uart_tx_start(&m_huart1, gl_msg.buf, gl_msg.len);
 		}
 		return 0;
 	}
@@ -68,19 +76,19 @@ int uart_read_struct_mem_ppp(void * pword, comms_t * pcomms, size_t size, uint32
 	{
 		return ERROR_MALFORMED_MESSAGE;
 	}
-	int msg_len = create_read_struct_mem_message(pword, size/sizeof(uint32_t), pcomms, gl_msg_buf, sizeof(gl_msg_buf));
-	if(msg_len > 0)
+	create_read_struct_mem_message(pword, size/sizeof(uint32_t), pcomms, &gl_msg);
+	if(gl_msg.len > 0)
 	{
 		if(gl_use_ppp != 0)
 		{
-			int len = PPP_stuff(gl_msg_buf, msg_len, gl_ppp_stuff_buf, sizeof(gl_ppp_stuff_buf));	//double stuff the buffer! AAAH
+			int len = PPP_stuff(gl_msg.buf, gl_msg.len, gl_ppp_stuff_buf, sizeof(gl_ppp_stuff_buf));	//double stuff the buffer! AAAH
 			m_uart_tx_start(&m_huart1, gl_ppp_stuff_buf, len);
 			uint32_t wait_start = HAL_GetTick();
 			while(gl_reply_received == 0 && (HAL_GetTick() - wait_start) < timeout);
 			if(gl_reply_received)
 			{
 				gl_reply_received = 0;
-				update_comms_with_read_reply(pword, pcomms, m_huart1.ppp_unstuff_buf, m_huart1.ppp_unstuffed_size);
+				update_comms_with_read_reply(pword, pcomms, &gl_rx_unstuffed);
 				return SUCCESS;
 			}
 			else	//timeout
@@ -95,7 +103,9 @@ int uart_read_struct_mem_ppp(void * pword, comms_t * pcomms, size_t size, uint32
 		}
 	}
 	else
-		return msg_len;
+	{
+		return gl_msg.len;
+	}
 }
 /*
  * Saturate output
@@ -174,15 +184,15 @@ int main(void)
 		{
 			wifi_publish_ts = tick;
 
-			int32_t * pmsgbuf = (int32_t*)(gl_msg_buf);
+			int32_t * pmsgbuf = (int32_t*)(gl_msg.buf);
 			int idx = 0;
 			pmsgbuf[idx++] = gl_motors[0].foc.gl_iq;
 			pmsgbuf[idx++] = gl_motors[1].foc.gl_iq;
 //			pmsgbuf[idx++] = gl_motors[0].foc.gl_theta_rem_m;
 //			pmsgbuf[idx++] = gl_motors[1].foc.gl_theta_rem_m;
 			pmsgbuf[idx++] = tick;
-
-			int len = PPP_stuff(gl_msg_buf, idx*sizeof(int32_t), gl_ppp_stuff_buf, sizeof(gl_ppp_stuff_buf));
+			gl_msg.len = idx*sizeof(int32_t);
+			int len = PPP_stuff(gl_msg.buf, gl_msg.len, gl_ppp_stuff_buf, sizeof(gl_ppp_stuff_buf));
 			m_uart_tx_start(&m_huart2, gl_ppp_stuff_buf, len);
 		}
 
@@ -216,8 +226,8 @@ int main(void)
 		if(reply_pending == 0)
 		{
 			uart_tx_ts = tick;
-			int msg_len = create_motor_command(gl_motors[motor_index].fds.module_number, gl_motors[motor_index].command_word, gl_msg_buf, sizeof(gl_msg_buf));
-			int len = PPP_stuff(gl_msg_buf, msg_len, gl_ppp_stuff_buf, sizeof(gl_ppp_stuff_buf));	//double stuff the buffer! AAAH
+			create_motor_command(gl_motors[motor_index].fds.module_number, gl_motors[motor_index].command_word, &gl_msg);
+			int len = PPP_stuff(gl_msg.buf, gl_msg.len, gl_ppp_stuff_buf, sizeof(gl_ppp_stuff_buf));	//double stuff the buffer! AAAH
 			m_uart_tx_start(&m_huart1, gl_ppp_stuff_buf, len);
 			reply_pending = 1;
 		}
@@ -228,7 +238,7 @@ int main(void)
 			gl_reply_received = 0;
 			if(m_huart1.ppp_unstuff_buf[0] == MASTER_MOTOR_ADDRESS)
 			{
-				parse_motor_message_reply(m_huart1.ppp_unstuff_buf, m_huart1.ppp_unstuffed_size, &gl_motors[motor_index]);
+				parse_motor_message_reply(&gl_rx_unstuffed, &gl_motors[motor_index]);
 				motor_index = (motor_index + 1) % (sizeof(gl_motors)/sizeof(comms_t));
 			}
 			else if(m_huart1.ppp_unstuff_buf[0] == MASTER_MISC_ADDRESS)
