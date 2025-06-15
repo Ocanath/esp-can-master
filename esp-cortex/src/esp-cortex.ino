@@ -127,9 +127,13 @@ void loop()
       int pld_len = parse_PPP_stream(new_byte, gl_pld_buffer, PAYLOAD_BUFFER_SIZE, gl_unstuffing_buffer, UNSTUFFING_BUFFER_SIZE, &ppp_stuffing_bidx);
       if(pld_len != 0)
       {
-        if(gl_prefs.en_fixed_target == 0)
+        if(gl_prefs.en_fixed_target == 0 && udp.remoteIP() != IPAddress(0,0,0,0))
         {
           udp.beginPacket(udp.remoteIP(), udp.remotePort()+gl_prefs.reply_offset);
+        }
+        else if (gl_prefs.en_fixed_target == 0 &&udp.remoteIP() == IPAddress(0,0,0,0))
+        {
+          udp.beginPacket(IPAddress(255,255,255,255), gl_prefs.port+gl_prefs.reply_offset);
         }
         else
         {
