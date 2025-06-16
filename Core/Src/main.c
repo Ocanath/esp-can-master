@@ -218,8 +218,8 @@ int main(void)
 		if(tick - misc_read_ts > 1 && reply_pending == 0)		//separate for blocking misc reads/writes. Blocking makes more sense for misc, unless you are doing block misc for motor control instead of the real motor command
 		{
 			misc_read_ts = tick;
-//			uart_read_struct_mem_ppp(&gl_motors[0].foc.gl_id, &gl_motors[0], sizeof(int32_t), 1);		//for example, read the ID value once every millisecond
-//			uart_read_struct_mem_ppp(&gl_motors[1].foc.gl_id, &gl_motors[1], sizeof(int32_t), 1);
+			uart_read_struct_mem_ppp(&gl_motors[0].foc.gl_id, &gl_motors[0], sizeof(int32_t), 1);		//for example, read the ID value once every millisecond
+			uart_read_struct_mem_ppp(&gl_motors[1].foc.gl_id, &gl_motors[1], sizeof(int32_t), 1);
 
 			for(int i = 0; i < sizeof(gl_motors)/sizeof(comms_t); i++)	//if the command mode value changes (i.e. from a watch expression), update it with a write command
 			{

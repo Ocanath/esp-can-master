@@ -41,6 +41,8 @@ void test_write_struct_mem(void)
 	TEST_ASSERT_GREATER_THAN(0, len);
 	int rc = parse_motor_message(slave_comms.fds.module_number, get_misc_address(slave_comms.fds.module_number), &msg, &reply, &slave_comms);
 	TEST_ASSERT_EQUAL(SERIAL_PROTOCOL_SUCCESS, rc);
+	TEST_ASSERT_EQUAL(len,msg.len);//original implementation had changed len. now we want to preserve the message before and after the parse
+	TEST_ASSERT_EQUAL(&msg.buf[0], &msg_buf[0]);	//explicit test to make sure that the pointer to the buffer did not move. We had some logic earlier that did this which was no bueno
 	TEST_ASSERT_EQUAL(master_comms.mpctl_rotor_vq.kpki.kp.i32, slave_comms.mpctl_rotor_vq.kpki.kp.i32);
 	slave_comms.mpctl_rotor_vq.kpki.kp.i32 = 0;
 	TEST_ASSERT_NOT_EQUAL(master_comms.mpctl_rotor_vq.kpki.kp.i32, slave_comms.mpctl_rotor_vq.kpki.kp.i32);
@@ -50,6 +52,7 @@ void test_write_struct_mem(void)
 	TEST_ASSERT_GREATER_THAN(0, len);
 	rc = parse_motor_message(slave_comms.fds.module_number, get_misc_address(slave_comms.fds.module_number), &msg, &reply, &slave_comms);
 	TEST_ASSERT_EQUAL(SERIAL_PROTOCOL_SUCCESS, rc);
+	TEST_ASSERT_EQUAL(&msg.buf[0], &msg_buf[0]);	//explicit test to make sure that the pointer to the buffer did not move. We had some logic earlier that did this which was no bueno
 	TEST_ASSERT_EQUAL(master_comms.mpctl_rotor_vq.kpki.kp.i32, slave_comms.mpctl_rotor_vq.kpki.kp.i32);
 	TEST_ASSERT_EQUAL(master_comms.mpctl_rotor_vq.kpki.kp.radix, slave_comms.mpctl_rotor_vq.kpki.kp.radix);
 	TEST_ASSERT_EQUAL(master_comms.mpctl_rotor_vq.kpki.ki.i32, slave_comms.mpctl_rotor_vq.kpki.ki.i32);
@@ -94,6 +97,7 @@ void test_read_struct_mem(void)
 	TEST_ASSERT_GREATER_THAN(0,len);
 	int rc = parse_motor_message(slave_comms.fds.module_number, get_misc_address(slave_comms.fds.module_number), &msg, &reply, &slave_comms);
 	TEST_ASSERT_EQUAL(SERIAL_PROTOCOL_SUCCESS, rc);
+	TEST_ASSERT_EQUAL(&msg.buf[0], &msg_buf[0]);	//explicit test to make sure that the pointer to the buffer did not move. We had some logic earlier that did this which was no bueno
 	TEST_ASSERT_GREATER_THAN(0, reply.len);
 	TEST_ASSERT_EQUAL(reply.buf[0], MASTER_MISC_ADDRESS);
 	rc = update_comms_with_read_reply(&master_comms.mpctl_rotor_vq, &master_comms, &reply);
@@ -149,6 +153,7 @@ void test_motor_comms_misc_write_read_command(void)
 
 	int rc = parse_motor_message(slave_comms.fds.module_number, get_misc_address(slave_comms.fds.module_number), &msg, &reply, &slave_comms);
 	TEST_ASSERT_EQUAL(SERIAL_PROTOCOL_SUCCESS, rc);
+	TEST_ASSERT_EQUAL(&msg.buf[0], &master_tx_msg[0]);	//explicit test to make sure that the pointer to the buffer did not move. We had some logic earlier that did this which was no bueno
 	TEST_ASSERT_EQUAL(master_comms.fds.align_offset_fixed, slave_comms.fds.align_offset_fixed);
 
 	buffer_t read_msg = {.buf = master_tx_msg, .size = sizeof(master_tx_msg), .len = 0};
@@ -161,6 +166,7 @@ void test_motor_comms_misc_write_read_command(void)
 							 &reply,
 							 &slave_comms);
 	TEST_ASSERT_EQUAL(SERIAL_PROTOCOL_SUCCESS, rc);
+	TEST_ASSERT_EQUAL(&read_msg.buf[0], &master_tx_msg[0]);	//explicit test to make sure that the pointer to the buffer did not move. We had some logic earlier that did this which was no bueno
 	int32_t * p_reply = (int32_t *)(&reply.buf[NUM_BYTES_ADDRESS]);
 	TEST_ASSERT_EQUAL(master_comms.fds.align_offset_fixed, *p_reply);
 }
@@ -197,6 +203,7 @@ void test_single_struct_write_read(void)
 								 &reply,
 								 &slave_comms);
 	TEST_ASSERT_EQUAL(SERIAL_PROTOCOL_SUCCESS, rc);
+	TEST_ASSERT_EQUAL(&msg.buf[0], &master_tx_buf[0]);	//explicit test to make sure that the pointer to the buffer did not move. We had some logic earlier that did this which was no bueno
 	TEST_ASSERT_EQUAL(sizeof(master_comms.foc)+NUM_BYTES_ADDRESS + NUM_BYTES_CHECKSUM, reply.len);
 	unsigned char * p_master_comms = (unsigned char *)(&master_comms.foc);
 	for(int i = 0; i < reply.len; i++)
@@ -242,6 +249,7 @@ void test_full_struct_write_read(void)
 	};
 	int master_uart_tx_msg_len = create_misc_write_message(get_misc_address(address), 0, &payload, &msg);
 	TEST_ASSERT_EQUAL(master_uart_tx_msg_len, msg.len);
+	TEST_ASSERT_EQUAL(msg.len, payload.len + NUM_BYTES_ADDRESS+NUM_BYTES_INDEX+NUM_BYTES_CHECKSUM);
 	int slave_rx_msg_len = master_uart_tx_msg_len;
 	unsigned char * slave_uart_rx_buffer = master_uart_tx_buffer;
 	unsigned char slave_uart_tx_buffer[sizeof(comms_t)+NUM_BYTES_NON_PAYLOAD] = {};
@@ -249,6 +257,7 @@ void test_full_struct_write_read(void)
 	buffer_t slave_reply = {.buf = slave_uart_tx_buffer, .size = sizeof(slave_uart_tx_buffer), .len = 0};
 	int rc = parse_motor_message(address, get_misc_address(address), &slave_msg, &slave_reply, &slave_comms);
 	TEST_ASSERT_EQUAL(SERIAL_PROTOCOL_SUCCESS, rc);
+	TEST_ASSERT_EQUAL(&msg.buf[0], &master_uart_tx_buffer[0]);	//explicit test to make sure that the pointer to the buffer did not move. We had some logic earlier that did this which was no bueno
 	for(int i = 0; i < sizeof(comms_t); i++)
 	{
 		TEST_ASSERT_EQUAL(pmaster[i], pslave[i]);
@@ -262,11 +271,23 @@ void test_full_struct_write_read(void)
 	slave_reply.len = 0;
 	rc = parse_motor_message(address, get_misc_address(address), &slave_msg, &slave_reply, &slave_comms);
 	TEST_ASSERT_EQUAL(SERIAL_PROTOCOL_SUCCESS, rc);
+	TEST_ASSERT_EQUAL(&msg.buf[0], &master_uart_tx_buffer[0]);	//explicit test to make sure that the pointer to the buffer did not move. We had some logic earlier that did this which was no bueno
+	TEST_ASSERT_EQUAL(NUM_BYTES_CHECKSUM+NUM_BYTES_ADDRESS+sizeof(comms_t), slave_reply.len);
+	TEST_ASSERT_EQUAL(slave_reply.buf[0], MASTER_MISC_ADDRESS);
 	for(int i = 0; i < sizeof(comms_t); i++)
 	{
+		TEST_ASSERT_EQUAL(pmaster[i], slave_reply.buf[i+NUM_BYTES_ADDRESS]);
 		TEST_ASSERT_EQUAL(pmaster[i], slave_uart_tx_buffer[i+NUM_BYTES_ADDRESS]);
 		TEST_ASSERT_NOT_EQUAL(0, slave_uart_tx_buffer[i+NUM_BYTES_ADDRESS]);
 	}
+	uint16_t crc = get_crc16(slave_reply.buf, slave_reply.len-2);
+	uint16_t payload_crc = 0;
+	unsigned char * p_pldcrc_var = (unsigned char *)(&payload_crc);
+	for(int i = 0; i < sizeof(payload_crc); i++)
+	{
+		p_pldcrc_var[i] = slave_reply.buf[slave_reply.len-2+i];
+	}
+	TEST_ASSERT_EQUAL(crc, payload_crc);
 }
 
 
@@ -299,6 +320,7 @@ void test_motor_comms_motor_command(void)
 	buffer_t reply = {.buf = reply_buf, .size = sizeof(reply_buf), .len = 0};
 	rc = parse_motor_message(slave_comms.fds.module_number, get_misc_address(slave_comms.fds.module_number), &msg, &reply, &slave_comms);
 	TEST_ASSERT_EQUAL(SERIAL_PROTOCOL_SUCCESS, rc);
+	TEST_ASSERT_EQUAL(&msg.buf[0], &msg_buf[0]);	//explicit test to make sure that the pointer to the buffer did not move. We had some logic earlier that did this which was no bueno
 	TEST_ASSERT_EQUAL(1234, slave_comms.command_word);
 	TEST_ASSERT_GREATER_THAN(0,reply.len);
 	TEST_ASSERT_EQUAL(reply.buf[0], MASTER_MOTOR_ADDRESS);
@@ -310,6 +332,7 @@ void test_motor_comms_motor_command(void)
 	comms_t master_comms = {};
 	rc = parse_motor_message_reply(&reply, &master_comms);
 	TEST_ASSERT_EQUAL(SERIAL_PROTOCOL_SUCCESS, rc);
+	TEST_ASSERT_EQUAL(&reply.buf[0], &reply_buf[0]);	//explicit test to make sure that the pointer to the buffer did not move. We had some logic earlier that did this which was no bueno
 	TEST_ASSERT_EQUAL(slave_comms.foc.gl_iq, master_comms.foc.gl_iq);
 	TEST_ASSERT_EQUAL(slave_comms.foc.gl_dtheta_fixedpoint_rad_p_sec, master_comms.foc.gl_dtheta_fixedpoint_rad_p_sec);
 	TEST_ASSERT_EQUAL(slave_comms.foc.gl_theta_rem_m, master_comms.foc.gl_theta_rem_m);
@@ -331,8 +354,5 @@ void test_motor_comms_invalid_message_length(void)
 	TEST_ASSERT_EQUAL(ERROR_INVALID_ARGUMENT, rc);
 	TEST_ASSERT_NOT_EQUAL(SERIAL_PROTOCOL_SUCCESS, rc);
 }
-
-
-
 
 

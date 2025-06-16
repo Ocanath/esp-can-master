@@ -327,8 +327,6 @@ int parse_motor_message(unsigned char motor_address, unsigned char misc_address,
         }
         else if(msg->buf[0] == misc_address)
         {
-            msg->buf = &(msg->buf[1]);
-            msg->len -= (NUM_BYTES_CHECKSUM + NUM_BYTES_ADDRESS);
             return parse_misc_command(msg, reply, comms);
         }
         else

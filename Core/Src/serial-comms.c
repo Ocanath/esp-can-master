@@ -153,12 +153,12 @@ int create_misc_write_message(unsigned char address, uint16_t index, buffer_t * 
  */
 int parse_misc_command(buffer_t * msg, buffer_t * reply, comms_t * comms)
 {
-    if(msg == NULL || msg->len < 4)
+    if(msg == NULL) //  || msg->len < (NUM_BYTES_ADDRESS+NUM_BYTES_INDEX+NUM_BYTES_CHECKSUM) //message length check should have been done before we enter here
     {
         return ERROR_MALFORMED_MESSAGE;
     }
 
-    uint16_t * p_index_argument = (uint16_t *)(&msg->buf[0]);
+    uint16_t * p_index_argument = (uint16_t *)(&msg->buf[NUM_BYTES_ADDRESS]);		//previously this function offsetted with pointer logic before entry. That is dumb. We parse the whole message now with correct offsets
     uint16_t read_mask = *p_index_argument & 0x8000;
     uint16_t index = *p_index_argument & 0x7FFF;
     uint32_t byte_index = (uint32_t)(index*sizeof(uint32_t));
@@ -166,7 +166,7 @@ int parse_misc_command(buffer_t * msg, buffer_t * reply, comms_t * comms)
     if(read_mask == 0)    //
     {
         //write    
-        int write_len = msg->len - sizeof(uint16_t);   //index argument parsed, skip it
+        int write_len = msg->len - (NUM_BYTES_ADDRESS + NUM_BYTES_INDEX + NUM_BYTES_CHECKSUM);   //We start after the index section, and go until we hit the checksum
         if(byte_index + write_len > sizeof(comms_t))
         {
             return ERROR_MALFORMED_MESSAGE;
@@ -175,7 +175,7 @@ int parse_misc_command(buffer_t * msg, buffer_t * reply, comms_t * comms)
         {
             unsigned char * pcomms = (unsigned char *)(comms);
             pcomms = &pcomms[byte_index];
-            unsigned char * pmsg = &msg->buf[sizeof(uint16_t)];  //skip past the index argument portion for the write payload
+            unsigned char * pmsg = &msg->buf[NUM_BYTES_ADDRESS+NUM_BYTES_INDEX];  //skip past the index argument portion for the write payload
             for(int i = 0; i < write_len; i++)
             {
                 pcomms[i] = pmsg[i];
@@ -187,14 +187,14 @@ int parse_misc_command(buffer_t * msg, buffer_t * reply, comms_t * comms)
     else
     {
         //read
-        if(msg->len != 4 && reply == NULL)
+        if( (msg->len != (NUM_BYTES_ADDRESS + NUM_BYTES_INDEX + NUM_BYTES_NUMWORDS_READREQUEST + NUM_BYTES_CHECKSUM) ) || reply == NULL)
         {
             return ERROR_MALFORMED_MESSAGE;
         }
         else
         {
             //read
-            uint16_t * p_numread_words = (uint16_t*)(&msg->buf[2]);
+            uint16_t * p_numread_words = (uint16_t*)(&msg->buf[NUM_BYTES_ADDRESS+NUM_BYTES_INDEX]);
             uint32_t numread_bytes = (uint32_t)(*p_numread_words * sizeof(uint32_t));
             if(numread_bytes + byte_index > sizeof(comms_t) || (numread_bytes + NUM_BYTES_CHECKSUM + NUM_BYTES_ADDRESS) > reply->size)	//pre-check size once
             {
@@ -248,9 +248,6 @@ int parse_general_message(unsigned char address, buffer_t * msg, buffer_t * repl
     {
         if(msg->buf[0] == address)
         {
-            //remove address and checksum from the message and then parse
-            msg->buf = &(msg->buf[1]);
-            msg->len -= (NUM_BYTES_CHECKSUM + NUM_BYTES_ADDRESS);
             return parse_misc_command(msg, reply, comms);
         }
         else
