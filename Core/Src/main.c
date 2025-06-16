@@ -8,107 +8,10 @@
 #include "m_mcpy.h"
 #include "sin-math.h"
 #include "serial-motor-comms.h"
-
-uint8_t gl_communication_buf[60] = {};
-buffer_t gl_msg = {
-		.buf = (unsigned char *)gl_communication_buf,
-		.size = sizeof(gl_communication_buf),
-		.len = 0
-};
-buffer_t gl_rx_unstuffed = {.buf = m_huart1.ppp_unstuff_buf, .size = sizeof(m_huart1.ppp_unstuff_buf), .len = 0};
-
-uint8_t gl_reply_received = 0;
-uint8_t gl_use_ppp = 1;
-uint8_t gl_rc = 0;	//for dbugging, rc that can't get optimtized out
-
-/*This is the general comms handler*/
-void ppp_uart1_rx_cplt_callback(uart_it_t * h)
-{
-	if(h->ppp_unstuffed_size > NUM_BYTES_ADDRESS + NUM_BYTES_CHECKSUM)
-	{
-		gl_rx_unstuffed.len = h->ppp_unstuffed_size;
-		int checksum_idx = h->ppp_unstuffed_size - sizeof(uint16_t);
-		uint16_t crc = get_crc16(h->ppp_unstuff_buf, checksum_idx);
-		uint16_t * p_checksum = (uint16_t*)(&h->ppp_unstuff_buf[checksum_idx]);
-		if(*p_checksum == crc)
-		{
-			gl_reply_received = 1;
-		}
-	}
-
-}
+#include "uart_struct_comms.h"
 
 
-void ppp_uart2_rx_cplt_callback(uart_it_t * h)
-{
-	//general structure:
-	//header (32bit, just for us to filter messages):
-	//payload	(packed motor command)
-	//checksum
-}
 
-
-int uart_write_struct_mem_ppp(void * pword, comms_t * pcomms, size_t size, uint32_t timeout)
-{
-	int msg_len = create_write_struct_mem_message(pword, size, pcomms, &gl_msg);
-	if(msg_len > 0)
-	{
-		if(gl_use_ppp != 0)
-		{
-			int len = PPP_stuff(gl_msg.buf, gl_msg.len, gl_ppp_stuff_buf, sizeof(gl_ppp_stuff_buf));	//double stuff the buffer! AAAH
-			m_uart_tx_start(&m_huart1, gl_ppp_stuff_buf, len);
-
-			uint32_t wait_start = HAL_GetTick();
-			while(m_huart1.tx_cplt == 0 && HAL_GetTick() - wait_start < timeout);
-		}
-		else
-		{
-			m_uart_tx_start(&m_huart1, gl_msg.buf, gl_msg.len);
-		}
-		return 0;
-	}
-	else
-		return msg_len;
-}
-
-
-int uart_read_struct_mem_ppp(void * pword, comms_t * pcomms, size_t size, uint32_t timeout)
-{
-	if(size % sizeof(uint32_t) != 0)	//it's fine to pass a sizeof() param, but we gotta make sure it's a multiple of 4 for this to play nice with the message protocol
-	{
-		return ERROR_MALFORMED_MESSAGE;
-	}
-	create_read_struct_mem_message(pword, size/sizeof(uint32_t), pcomms, &gl_msg);
-	if(gl_msg.len > 0)
-	{
-		if(gl_use_ppp != 0)
-		{
-			int len = PPP_stuff(gl_msg.buf, gl_msg.len, gl_ppp_stuff_buf, sizeof(gl_ppp_stuff_buf));	//double stuff the buffer! AAAH
-			m_uart_tx_start(&m_huart1, gl_ppp_stuff_buf, len);
-			uint32_t wait_start = HAL_GetTick();
-			while(gl_reply_received == 0 && (HAL_GetTick() - wait_start) < timeout);
-			if(gl_reply_received)
-			{
-				gl_reply_received = 0;
-				update_comms_with_read_reply(pword, pcomms, &gl_rx_unstuffed);
-				return SUCCESS;
-			}
-			else	//timeout
-			{
-				return ERROR_TIMEOUT;	//timeout error message
-			}
-		}
-		else
-		{
-			//TODO: implement this
-			return SUCCESS;
-		}
-	}
-	else
-	{
-		return gl_msg.len;
-	}
-}
 /*
  * Saturate output
  * */
@@ -152,16 +55,16 @@ int main(void)
 
 
 //	/*TODO: turn this into a generalized function that writes, modifies, reads, and confirms consistency*/
-	gl_rc = 1;
+	int rc = 1;
 	gl_motors[0].motor_command_mode = PCTL_VQ;
 	uart_write_struct_mem_ppp(&gl_motors[0].motor_command_mode, &gl_motors[0], sizeof(int32_t), 1);
 	HAL_Delay(1);
 	gl_motors[0].motor_command_mode++;
-	int rc = uart_read_struct_mem_ppp(&gl_motors[0].motor_command_mode, &gl_motors[0], sizeof(int32_t), 3);
+	rc = uart_read_struct_mem_ppp(&gl_motors[0].motor_command_mode, &gl_motors[0], sizeof(int32_t), 3);
 	HAL_Delay(1);
 	if(rc == SUCCESS && gl_motors[0].motor_command_mode == PCTL_VQ)
 	{
-		gl_rc = 0;
+		rc = 0;
 	}
 
 //	uart_read_struct_mem_ppp(&gl_motors[0].mpctl_rotor_vq.kpki.kp.i32, &gl_motors[0], sizeof(int32_t)*4, 3000);
@@ -182,49 +85,48 @@ int main(void)
 	while (1)
 	{
 		uint32_t tick = HAL_GetTick();
-		if(tick - wifi_publish_ts > 10)
-		{
-			wifi_publish_ts = tick;
 
-			gl_msg.len = 0;
-			gl_msg.buf[gl_msg.len++] = 'f';
-			gl_msg.buf[gl_msg.len++] = 'u';
-			gl_msg.buf[gl_msg.len++] = 'c';
-			gl_msg.buf[gl_msg.len++] = 'k';
-			int32_t * pmsgbuf = (int32_t*)(&gl_msg.buf[gl_msg.len]);
-			int idx = 0;
-			pmsgbuf[idx++] = gl_motors[0].foc.gl_iq;
-			pmsgbuf[idx++] = gl_motors[1].foc.gl_iq;
-			pmsgbuf[idx++] = tick;
-			gl_msg.len += (idx*sizeof(int32_t));
-			int len = PPP_stuff(gl_msg.buf, gl_msg.len, gl_ppp_stuff_buf, sizeof(gl_ppp_stuff_buf));
-			m_uart_tx_start(&m_huart2, gl_ppp_stuff_buf, len);
+		if(gl_wifi_msg.len == 8)
+		{
+			int msgbidx = 0;
+			for(int i = 0; i < sizeof(gl_motors)/sizeof(comms_t); i++)
+			{
+				int32_t val;
+				unsigned char * pval = (unsigned char *)(&val);
+				for(int b = 0; b < sizeof(int32_t); b++)
+				{
+					pval[b] = gl_wifi_msg.buf[msgbidx++];
+				}
+				gl_motors[i].command_word = val;
+			}
+			gl_wifi_msg.len = 0;
 		}
 
-//		gl_motors[0].command_word = 1000;
-//		gl_motors[1].command_word = -1000;
+
+
 		if(gl_do_pctl)
 		{
-//			for(int i = 0; i < sizeof(gl_motors)/sizeof(comms_t); i++)
-//			{
+			for(int i = 0; i < sizeof(gl_motors)/sizeof(comms_t); i++)
+			{
 				gl_motors[0].motor_command_mode = 0;
 				gl_motors[1].motor_command_mode = 0;
-
-				int32_t iq = (int32_t)(((int64_t)pctl_targs[0] - (int64_t)gl_motors[0].foc.gl_theta_rem_m)/10);
+//
+				int32_t iq = (int32_t)(((int64_t)pctl_targs[i] - (int64_t)gl_motors[i].foc.gl_theta_rem_m)/10);
 				iq = saturate(iq,1000);
-				if(iq > 0)
-				{
-					gl_motors[0].command_word = iq;
-					gl_motors[1].command_word = 0;
-				}
-				else
-				{
-					gl_motors[0].command_word = 0;
-					gl_motors[1].command_word = -iq;
-				}
+				gl_motors[i].command_word = iq;
+//				if(iq > 0)
+//				{
+//					gl_motors[0].command_word = iq;
+//					gl_motors[1].command_word = 0;
+//				}
+//				else
+//				{
+//					gl_motors[0].command_word = 0;
+//					gl_motors[1].command_word = -iq;
+//				}
 //				gl_motors[0].command_word = iq;
 //				gl_motors[1].command_word = -iq;
-//			}
+			}
 		}
 
 		/*Handle write*/
@@ -250,6 +152,41 @@ int main(void)
 			{
 				//parse misc message reply. Will depend on what misc message was sent to begin with
 			}
+
+
+
+			/*Note. if you send a huart2 frame */
+			if(tick - wifi_publish_ts > 10 && m_huart2.tx_cplt != 0)
+			{
+				wifi_publish_ts = tick;
+
+				gl_msg.len = 0;
+				gl_msg.buf[gl_msg.len++] = 'f';
+				gl_msg.buf[gl_msg.len++] = 'u';
+				gl_msg.buf[gl_msg.len++] = 'c';
+				gl_msg.buf[gl_msg.len++] = 'k';
+				int32_t * pmsgbuf = (int32_t*)(&gl_msg.buf[gl_msg.len]);
+				int idx = 0;
+				pmsgbuf[idx++] = gl_motors[0].foc.gl_iq;
+				pmsgbuf[idx++] = gl_motors[1].foc.gl_iq;
+				pmsgbuf[idx++] = gl_motors[0].foc.gl_theta_rem_m/50;
+				pmsgbuf[idx++] = gl_motors[0].command_word/50;
+				pmsgbuf[idx++] = gl_motors[1].foc.gl_theta_rem_m/50;
+				pmsgbuf[idx++] = tick;
+				gl_msg.len += (idx*sizeof(int32_t));
+				int len = PPP_stuff(gl_msg.buf, gl_msg.len, gl_ppp_stuff_buf, sizeof(gl_ppp_stuff_buf));
+				m_uart_tx_start(&m_huart2, gl_ppp_stuff_buf, len);
+				uint32_t waitstart_ts = tick;
+				while(m_huart2.tx_cplt == 0)	//block write here.
+				{
+					 if(HAL_GetTick() - waitstart_ts > 3)	//this sometimes happens from (i believe) interrupt pre-emption?
+					 {
+						 m_huart2.tx_cplt = 1;
+						 break;
+					 }
+				}
+			}
+
 		}
 		else if((tick - uart_tx_ts) > 1 && reply_pending != 0)	//read timeout
 		{
@@ -260,8 +197,8 @@ int main(void)
 		if(tick - misc_read_ts > 1 && reply_pending == 0)		//separate for blocking misc reads/writes. Blocking makes more sense for misc, unless you are doing block misc for motor control instead of the real motor command
 		{
 			misc_read_ts = tick;
-			uart_read_struct_mem_ppp(&gl_motors[0].foc.gl_id, &gl_motors[0], sizeof(int32_t), 1);		//for example, read the ID value once every millisecond
-			uart_read_struct_mem_ppp(&gl_motors[1].foc.gl_id, &gl_motors[1], sizeof(int32_t), 1);
+//			uart_read_struct_mem_ppp(&gl_motors[0].foc.gl_id, &gl_motors[0], sizeof(int32_t), 1);		//for example, read the ID value once every millisecond
+//			uart_read_struct_mem_ppp(&gl_motors[1].foc.gl_id, &gl_motors[1], sizeof(int32_t), 1);
 
 			for(int i = 0; i < sizeof(gl_motors)/sizeof(comms_t); i++)	//if the command mode value changes (i.e. from a watch expression), update it with a write command
 			{
