@@ -7,9 +7,7 @@
 
 #ifndef M_UART_H_
 #define M_UART_H_
-#include "init.h"
-#include "stm32g4xx_it.h"
-
+#include <stdint.h>
 
 #define UART_IT_BUF_SIZE 64		//fw generically capable of handling 24 bytes incoming.
 
@@ -18,12 +16,12 @@
  * handler should be populated with the handler function and a unique instance
  * of the uart_it_t structure.
  *
- *
- * */
+ * Note: uart_instance points to USART_TypeDef
+ *       gpio_port points to GPIO_TypeDef
+ */
 typedef struct uart_it_t
 {
-
-	USART_TypeDef * Instance;
+	void* uart_instance;  // Points to USART_TypeDef
 
 	int bytes_received;	//Set by handler, cleared by main software. main software should compare with 0 and use as a 'new frame receieved' flag
 	int rx_idx;		//helper variable, used to increment through the rx buffer
@@ -38,10 +36,10 @@ typedef struct uart_it_t
 	int tx_idx;	//helper variable, used to increment through the tx buffer
 	uint8_t * tx_buf;	//pointer to txbuffer.
 
-
-	GPIO_TypeDef * rs485_gpio_port;
-	uint16_t rs485_gpio_pin;
 	uint8_t tx_cplt;
+
+	void* rs485_de_gpio_port;      // Points to GPIO_TypeDef
+	uint16_t rs485_de_gpio_pin;
 
 }uart_it_t;
 

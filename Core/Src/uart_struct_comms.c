@@ -13,6 +13,8 @@
 #include "uart_struct_comms.h"
 #include "PPP.h"
 #include "checksum.h"
+#include "stm32g4xx_hal.h"	//this is gonna be a problem for ceedling
+
 
 buffer_t gl_wifi_msg = {
 		.buf = m_huart2.ppp_unstuff_buf,
@@ -120,7 +122,7 @@ int uart_read_struct_mem_ppp(void * pword, comms_t * pcomms, size_t size, uint32
 		else
 		{
 			//TODO: implement this
-			return SUCCESS;
+			return SERIAL_PROTOCOL_SUCCESS;
 		}
 	}
 	else
