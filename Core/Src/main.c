@@ -11,6 +11,27 @@
 #include "uart_struct_comms.h"
 
 
+/*This is the general comms handler*/
+void ppp_uart1_rx_cplt_callback(uart_it_t * h)
+{
+	if(h->ppp_unstuffed_size > NUM_BYTES_ADDRESS + NUM_BYTES_CHECKSUM)
+	{
+		gl_rx_unstuffed.len = h->ppp_unstuffed_size;
+		gl_reply_received = 1;
+	}
+
+}
+
+
+void ppp_uart2_rx_cplt_callback(uart_it_t * h)
+{
+	gl_wifi_msg.len = h->ppp_unstuffed_size;
+	//general structure:
+	//header (32bit, just for us to filter messages):
+	//payload	(packed motor command)
+	//checksum
+}
+
 
 /*
  * Saturate output

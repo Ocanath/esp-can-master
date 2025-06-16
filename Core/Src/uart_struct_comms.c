@@ -9,11 +9,11 @@
  *      Wrapper that plugs the comms library into the UART hardware interface.
  *      Intention is for this to be portable and unit-testable with mocks.
  */
-#include "m_uart.h"
 #include "uart_struct_comms.h"
+#include "m_uart.h"
 #include "PPP.h"
 #include "checksum.h"
-#include "stm32g4xx_hal.h"	//this is gonna be a problem for ceedling
+#include "tick.h"	//this is gonna be a problem for ceedling
 
 
 buffer_t gl_wifi_msg = {
@@ -32,27 +32,6 @@ buffer_t gl_rx_unstuffed = {.buf = m_huart1.ppp_unstuff_buf, .size = sizeof(m_hu
 
 uint8_t gl_reply_received = 0;
 uint8_t gl_use_ppp = 1;
-
-/*This is the general comms handler*/
-void ppp_uart1_rx_cplt_callback(uart_it_t * h)
-{
-	if(h->ppp_unstuffed_size > NUM_BYTES_ADDRESS + NUM_BYTES_CHECKSUM)
-	{
-		gl_rx_unstuffed.len = h->ppp_unstuffed_size;
-		gl_reply_received = 1;
-	}
-
-}
-
-
-void ppp_uart2_rx_cplt_callback(uart_it_t * h)
-{
-	gl_wifi_msg.len = h->ppp_unstuffed_size;
-	//general structure:
-	//header (32bit, just for us to filter messages):
-	//payload	(packed motor command)
-	//checksum
-}
 
 int uart_write_struct_mem_ppp(void * pword, comms_t * pcomms, size_t size, uint32_t timeout)
 {
