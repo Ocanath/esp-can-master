@@ -18,6 +18,7 @@
  *
  */
 #include <FDCAN.h>
+#include "serial-comms-FDCAN.h"
 
 #define DEFAULT_V_REPORT_RADIX	4
 #define DEFAULT_IQ_RSHIFT		3	//estimated max value of iq is in the ~17bit domain. shift 3 to get it between 14-15bit
@@ -71,4 +72,6 @@ void FDCAN_Config(void)
 	can_tx_header.TxEventFifoControl = FDCAN_NO_TX_EVENTS;
 	can_tx_header.MessageMarker = 0;
 }
+
+
 
