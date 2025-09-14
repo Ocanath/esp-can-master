@@ -5,14 +5,14 @@
  *      Author: Ocanath Robotman
  */
 
-#ifndef INC_DARTT_PARAMS_H_
-#define INC_DARTT_PARAMS_H_
+#ifndef INC_DARTT_MCTL_PARAMS_H_
+#define INC_DARTT_MCTL_PARAMS_H_
 #include "profiles.h"
 #include "pctl.h"
 
 typedef enum {FOC_MODE, SINUSOIDAL_MODE, PCTL_IQ, PCTL_VQ, OPEN_LOOP_MODE} control_mode_t;	//foc with velocity?
 
-typedef struct dartt_params_t
+typedef struct dartt_mctl_params_t
 {
 
 	int32_t command_word;
@@ -35,8 +35,8 @@ typedef struct dartt_params_t
 	uint32_t do_open_loop_test;	//commute motor
 	uint32_t auto_calibrate_align_offset;
 	uint32_t update_fs;	//use uint32_t because it'll get padded anyway
-}dartt_params_t;
+}dartt_mctl_params_t;
 
-extern dartt_params_t gl_dp;
+extern dartt_mctl_params_t gl_dp;
 
-#endif /* INC_DARTT_PARAMS_H_ */
+#endif /* INC_DARTT_MCTL_PARAMS_H_ */
