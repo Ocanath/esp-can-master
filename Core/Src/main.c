@@ -7,8 +7,12 @@
 #include "IIRsos.h"
 #include "m_mcpy.h"
 #include "sin-math.h"
+#include "dartt_mctl_params.h"
+#include "dartt_controller_params.h"
 
-#define NUM_MOTORS 2
+dartt_mctl_params_t motors[NUM_MOTORS] = {};
+//dartt_weapon_params_t weapon = {};	//todo: implement this
+
 
 /*
  * TODO:
@@ -121,14 +125,11 @@ int main(void)
 	MX_FDCAN1_Init();
 	FDCAN_Config();
 
-	uint32_t led_ts = 0;
-	uint32_t can_tx_ts = 0;
 
 	HAL_Delay(1000);
 
-	int tx_ididx = 0;
-	int32_t m0_offset = -990;
-	int32_t m1_offset = 16921;
+//	int32_t m0_offset = -990;
+//	int32_t m1_offset = 16921;
 
 	while(1)
 	{
