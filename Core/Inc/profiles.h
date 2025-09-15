@@ -75,7 +75,8 @@ typedef struct fds_motor_params_t
 //extern int32_t gl_prop_delayloop_interval;
 //extern fixed_PI_params_t iq_pi;
 //extern fixed_PI_params_t id_pi;
-extern fds_motor_params_t * fds_mp;
+
+//extern fds_motor_params_t * fds_mp;
 
 
 extern const float elec_conv_ratio;

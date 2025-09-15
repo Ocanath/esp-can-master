@@ -90,7 +90,7 @@ int create_fdcan_struct_write_frame(
 	return dartt_create_write_frame(&write_msg, TYPE_ADDR_CRC_MESSAGE, output_frame);
 }
 
-void write_motor_int32_field(unsigned char * pfield, dartt_mctl_params_t * motor)
+int write_fdcan_motor_int32_field(unsigned char * pfield, dartt_mctl_params_t * motor)
 {
 	buffer_t field =
 	{
@@ -106,9 +106,91 @@ void write_motor_int32_field(unsigned char * pfield, dartt_mctl_params_t * motor
 	};
 	if(create_fdcan_struct_write_frame(&field, &alias, &can_tx) == SERIAL_PROTOCOL_SUCCESS)
 	{
-		send_fdcan_frame(dartt_get_complementary_address(motor->fds_mp.module_number), &can_tx);
+		return send_fdcan_frame(dartt_get_complementary_address(motor->fds_mp.module_number), &can_tx);
+	}
+	else
+	{
+		return ERROR_INVALID_ARGUMENT;	//bad
 	}
 }
+
+
+
+//lookup
+uint8_t fdcan_lookup[] =
+{
+		0,
+		1,
+		2,
+		3,
+		4,
+		5,
+		6,
+		7,
+		8,
+		12,
+		16,
+		20,
+		24,
+		32,
+		48,
+		64
+};
+
+
+int read_reply_blocking_fdcan_read(misc_read_message_t * read_msg, buffer_t * config_ref, uint32_t timeout)
+{
+	uint32_t start = HAL_GetTick();
+	while((HAL_GetTick() - start) < timeout)
+	{
+		if(HAL_FDCAN_GetRxFifoFillLevel(&hfdcan1, FDCAN_RX_FIFO0) != 0)
+		{
+			HAL_FDCAN_GetRxMessage(&hfdcan1, FDCAN_RX_FIFO0, &can_rx_header, can_rx.buf);
+			can_rx.len = (can_rx_header.DataLength >> 16) & 0xF;
+			if(can_rx.len > 8)
+			{
+				if(can_rx.len < sizeof(fdcan_lookup))
+				{
+					can_rx.len = fdcan_lookup[can_rx.len];
+				}
+			}
+			if(can_rx_header.Identifier == MASTER_MOTOR_ADDRESS)	//motor command - dartt specifies custom implementation
+			{
+				//do things with the data
+			}
+			else if (can_rx_header.Identifier == MASTER_MISC_ADDRESS)
+			{
+				payload_layer_msg_t pld_msg = {};
+			    dartt_frame_to_payload(&can_rx, TYPE_ADDR_CRC_MESSAGE, PAYLOAD_ALIAS, &pld_msg);	//calling this function is unnecessary - can just do manually if desired. keeping dartt lib usage consistent tho
+				return dartt_parse_read_reply(&pld_msg, read_msg, config_ref);
+			}
+		}
+	}
+	return FDCAN_READ_TIMEOUT;
+}
+
+int read_fdcan_motor_int32_field(unsigned char * pfield, dartt_mctl_params_t * motor)
+{
+	int field_index = index_of_field(pfield, (unsigned char *)(motor), sizeof(dartt_mctl_params_t));
+	if(field_index < 0)
+	{
+		return field_index;
+	}
+	misc_read_message_t read_msg = {};
+	//ignore address
+	read_msg.index = field_index;
+	read_msg.num_bytes = sizeof(int32_t);	//numbytes
+	dartt_create_read_frame(&read_msg, TYPE_ADDR_CRC_MESSAGE, &can_tx);
+	send_fdcan_frame(dartt_get_complementary_address(motor->fds_mp.module_number), &can_tx);
+	buffer_t motor_alias =
+	{
+			.buf = (unsigned char *)(motor),
+			.size = sizeof(dartt_mctl_params_t),
+			.len = 0
+	};
+	return read_reply_blocking_fdcan_read(&read_msg, &motor_alias, 10);
+}
+
 
 int main(void)
 {
@@ -135,10 +217,14 @@ int main(void)
 	{
 		int i = 0;
 		motors[i].open_loop_vd++;
-		write_motor_int32_field((unsigned char *)(&motors[i].open_loop_vd), &motors[i]);
+		write_fdcan_motor_int32_field((unsigned char *)(&motors[i].open_loop_vd), &motors[i]);
+		motors[i].open_loop_vd = 0;
+		read_fdcan_motor_int32_field((unsigned char *)&motors[i].open_loop_vd, &motors[i]);
 		HAL_Delay(1000);
 		motors[i].open_loop_vq++;
-		write_motor_int32_field((unsigned char *)(&motors[i].open_loop_vq), &motors[i]);
+		write_fdcan_motor_int32_field((unsigned char *)(&motors[i].open_loop_vq), &motors[i]);
+		motors[i].open_loop_vq = 0;
+		read_fdcan_motor_int32_field((unsigned char *)&motors[i].open_loop_vq, &motors[i]);
 		HAL_Delay(1000);
 	}
 

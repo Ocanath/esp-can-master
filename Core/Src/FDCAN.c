@@ -26,8 +26,7 @@ uint16_t gl_ext_cmd_id;
 
 FDCAN_TxHeaderTypeDef		can_tx_header;
 FDCAN_RxHeaderTypeDef		can_rx_header;
-//can_payload_t 			can_tx_data = {0};
-//can_payload_t 			can_rx_data = {0};
+
 uint32_t				can_tx_mailbox;
 
 unsigned char can_tx_buf[64] = {};
@@ -37,6 +36,16 @@ buffer_t can_tx =
 		.size = sizeof(can_tx_buf),
 		.len = 0
 };
+
+
+unsigned char can_rx_buf[64] = {};
+buffer_t can_rx =
+{
+		.buf = can_rx_buf,
+		.size = sizeof(can_rx_buf),
+		.len = 0
+};
+
 
 /*
  * Generic can buffer send function

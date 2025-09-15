@@ -13,6 +13,7 @@
 
 #define PAYLOAD_SIZE_CAN 8
 
+#define FDCAN_READ_TIMEOUT 	1		//error code
 
 typedef union
 {
@@ -28,6 +29,7 @@ extern FDCAN_TxHeaderTypeDef   can_tx_header;
 extern FDCAN_RxHeaderTypeDef   can_rx_header;
 extern uint32_t			can_tx_mailbox;
 extern buffer_t can_tx;
+extern buffer_t can_rx;
 
 int send_fdcan_frame(uint16_t id, buffer_t * buffer);
 
