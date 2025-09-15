@@ -188,10 +188,10 @@ int read_fdcan_motor_field(unsigned char * pfield, uint16_t num_bytes, dartt_mct
 			.size = sizeof(dartt_mctl_params_t),
 			.len = 0
 	};
-	return read_reply_blocking_fdcan_read(&read_msg, &motor_alias, 10);
+	return read_reply_blocking_fdcan_read(&read_msg, &motor_alias, 50);
 }
 
-
+int gl_rc = 0;
 int main(void)
 {
 	HAL_Init();
@@ -211,21 +211,34 @@ int main(void)
 	//	int32_t m1_offset = 16921;
 
 	//create a buffer_t for can transmissions
-
-
+	for(int i = 0; i < NUM_MOTORS; i++)
+	{
+		buffer_t alias =
+		{
+				.buf = (unsigned char *)(&motors[i]),
+				.size = sizeof(dartt_mctl_params_t),
+				.len = 0
+		};
+		for(int field = 0; field < sizeof(dartt_mctl_params_t); field += sizeof(int32_t)*2)
+		{
+			gl_rc = read_fdcan_motor_field(&(alias.buf[field]), sizeof(int32_t)*2, &motors[i]);
+		}
+	}
 	while(1)
 	{
-		int i = 0;
-		motors[i].open_loop_vd++;
-		write_fdcan_motor_int32_field((unsigned char *)(&motors[i].open_loop_vd), &motors[i]);
-		motors[i].open_loop_vd = 0;
-		read_fdcan_motor_field((unsigned char *)&motors[i].open_loop_vd, sizeof(int32_t), &motors[i]);
-		HAL_Delay(1000);
-		motors[i].open_loop_vq++;
-		write_fdcan_motor_int32_field((unsigned char *)(&motors[i].open_loop_vq), &motors[i]);
-		motors[i].open_loop_vq = 0;
-		read_fdcan_motor_field((unsigned char *)&motors[i].open_loop_vq, sizeof(int32_t), &motors[i]);
-		HAL_Delay(1000);
+		for(int i = 0; i < NUM_MOTORS; i++)
+		{
+			motors[i].open_loop_vd++;
+			write_fdcan_motor_int32_field((unsigned char *)(&motors[i].open_loop_vd), &motors[i]);
+			motors[i].open_loop_vd = 0;
+			read_fdcan_motor_field((unsigned char *)&motors[i].open_loop_vd, sizeof(int32_t), &motors[i]);
+			HAL_Delay(100);
+			motors[i].open_loop_vq++;
+			write_fdcan_motor_int32_field((unsigned char *)(&motors[i].open_loop_vq), &motors[i]);
+			motors[i].open_loop_vq = 0;
+			read_fdcan_motor_field((unsigned char *)&motors[i].open_loop_vq, sizeof(int32_t), &motors[i]);
+			HAL_Delay(100);
+		}
 	}
 
 	//	send_motor_i32(motors[0].id, m0_offset);
