@@ -156,7 +156,7 @@ int read_reply_blocking_fdcan_read(misc_read_message_t * read_msg, buffer_t * co
 			}
 			if(can_rx_header.Identifier == MASTER_MOTOR_ADDRESS)	//motor command - dartt specifies custom implementation
 			{
-				//do things with the data
+				//this shouldn't happen, because we should only call this on dartt misc reads
 			}
 			else if (can_rx_header.Identifier == MASTER_MISC_ADDRESS)
 			{
@@ -169,7 +169,7 @@ int read_reply_blocking_fdcan_read(misc_read_message_t * read_msg, buffer_t * co
 	return FDCAN_READ_TIMEOUT;
 }
 
-int read_fdcan_motor_int32_field(unsigned char * pfield, dartt_mctl_params_t * motor)
+int read_fdcan_motor_field(unsigned char * pfield, uint16_t num_bytes, dartt_mctl_params_t * motor)
 {
 	int field_index = index_of_field(pfield, (unsigned char *)(motor), sizeof(dartt_mctl_params_t));
 	if(field_index < 0)
@@ -179,7 +179,7 @@ int read_fdcan_motor_int32_field(unsigned char * pfield, dartt_mctl_params_t * m
 	misc_read_message_t read_msg = {};
 	//ignore address
 	read_msg.index = field_index;
-	read_msg.num_bytes = sizeof(int32_t);	//numbytes
+	read_msg.num_bytes = num_bytes;	//numbytes is HERE! you can deploy another helper that does the same thing
 	dartt_create_read_frame(&read_msg, TYPE_ADDR_CRC_MESSAGE, &can_tx);
 	send_fdcan_frame(dartt_get_complementary_address(motor->fds_mp.module_number), &can_tx);
 	buffer_t motor_alias =
@@ -219,12 +219,12 @@ int main(void)
 		motors[i].open_loop_vd++;
 		write_fdcan_motor_int32_field((unsigned char *)(&motors[i].open_loop_vd), &motors[i]);
 		motors[i].open_loop_vd = 0;
-		read_fdcan_motor_int32_field((unsigned char *)&motors[i].open_loop_vd, &motors[i]);
+		read_fdcan_motor_field((unsigned char *)&motors[i].open_loop_vd, sizeof(int32_t), &motors[i]);
 		HAL_Delay(1000);
 		motors[i].open_loop_vq++;
 		write_fdcan_motor_int32_field((unsigned char *)(&motors[i].open_loop_vq), &motors[i]);
 		motors[i].open_loop_vq = 0;
-		read_fdcan_motor_int32_field((unsigned char *)&motors[i].open_loop_vq, &motors[i]);
+		read_fdcan_motor_field((unsigned char *)&motors[i].open_loop_vq, sizeof(int32_t), &motors[i]);
 		HAL_Delay(1000);
 	}
 
