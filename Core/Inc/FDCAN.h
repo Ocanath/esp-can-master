@@ -11,13 +11,14 @@
 #include "fds.h"
 #include "dartt.h"
 
-#define PAYLOAD_SIZE_CAN 8
+#define PAYLOAD_SIZE_CAN 64
 
 #define FDCAN_READ_TIMEOUT 	1		//error code
 
+
 typedef union
 {
-	uint8_t d[PAYLOAD_SIZE_CAN];
+	uint8_t u8[PAYLOAD_SIZE_CAN];
 	int32_t i32[PAYLOAD_SIZE_CAN/sizeof(int32_t)];	//all types are even multiples of 8, and sizeof evals at compile time so this is safe
 	uint32_t ui32[PAYLOAD_SIZE_CAN/sizeof(uint32_t)];
 	int16_t i16[PAYLOAD_SIZE_CAN/sizeof(int16_t)];
@@ -28,7 +29,11 @@ typedef union
 extern FDCAN_TxHeaderTypeDef   can_tx_header;
 extern FDCAN_RxHeaderTypeDef   can_rx_header;
 extern uint32_t			can_tx_mailbox;
+
+extern can_payload_t can_tx_mem;
 extern buffer_t can_tx;
+
+extern can_payload_t can_rx_mem;
 extern buffer_t can_rx;
 
 int send_fdcan_frame(uint16_t id, buffer_t * buffer);

@@ -148,7 +148,7 @@ uint8_t fdcan_lookup[] =
 		64
 };
 
-int read_motor_reply(uint32_t timeout)
+int read_motor_reply(dartt_mctl_params_t * motor, uint32_t timeout)
 {
 	uint32_t start = HAL_GetTick();
 	while((HAL_GetTick() - start) < timeout)
@@ -167,6 +167,9 @@ int read_motor_reply(uint32_t timeout)
 			if(can_rx_header.Identifier == MASTER_MOTOR_ADDRESS)	//motor command - dartt specifies custom implementation
 			{
 				//this shouldn't happen, because we should only call this on dartt misc reads
+				motor->theta_rem_m = can_rx_mem.i32[0];
+				motor->iq = can_rx_mem.i16[2];	//note - this is divided by a number to get it to fit in a 16bit word - still fuzzy on how this works honestly, i forgor
+				motor->dtheta_fixedpoint_rad_p_sec = can_rx_mem.i16[3];
 				return 0;	//return on successful matching reply
 			}
 		}
@@ -276,21 +279,18 @@ int main(void)
 
 	}
 
-	int32_t m0_pos = 0;
-	int32_t m1_pos = 0;
-
 	while(1)
 	{
 		uint32_t tick = HAL_GetTick();
-		motors[0].command_word = 0;
-		motors[1].command_word = 0;
-//		motors[0].command_word = sin_14b(wrap_2pi_14b(tick*10))*PI_14B/(1<<14);
-//		motors[1].command_word = cos_14b(wrap_2pi_14b(tick*10))*PI_14B/(1<<14);
+//		motors[0].command_word = 0;
+//		motors[1].command_word = 0;
+		motors[0].command_word = sin_14b(wrap_2pi_14b(tick*10))*PI_14B/(1<<14);
+		motors[1].command_word = cos_14b(wrap_2pi_14b(tick*10))*PI_14B/(1<<14);
 
 		for(int i = 0; i < NUM_MOTORS; i++)
 		{
 			send_fdcan_frame(motors[i].fds_mp.module_number, &motor_command_alias[i]);
-			read_motor_reply(1000);
+			read_motor_reply(&motors[i], 1000);
 		}
 	}
 

@@ -29,20 +29,22 @@ FDCAN_RxHeaderTypeDef		can_rx_header;
 
 uint32_t				can_tx_mailbox;
 
-unsigned char can_tx_buf[64] = {};
+//unsigned char can_tx_buf[64] = {};
+can_payload_t can_tx_mem = {};
 buffer_t can_tx =
 {
-		.buf = can_tx_buf,
-		.size = sizeof(can_tx_buf),
+		.buf = (unsigned char *)(&can_tx_mem.u8[0]),
+		.size = sizeof(can_tx_mem),
 		.len = 0
 };
 
 
-unsigned char can_rx_buf[64] = {};
+//unsigned char can_rx_buf[64] = {};
+can_payload_t can_rx_mem = {};
 buffer_t can_rx =
 {
-		.buf = can_rx_buf,
-		.size = sizeof(can_rx_buf),
+		.buf = (unsigned char *)(&can_rx_mem.u8[0]),
+		.size = sizeof(can_rx_mem),
 		.len = 0
 };
 
