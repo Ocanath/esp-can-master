@@ -31,13 +31,11 @@ void setup() {
 
 }
 
+uint32_t ledts = 0; 
+uint8_t led_state = 0;
 
 void loop() 
 {
-  uint32_t ledts = 0; 
-  uint8_t led_state = 0;
-  while(1)
-  {
 	uint32_t tick = millis();
 	if(tick - ledts > 250)
 	{
@@ -55,5 +53,4 @@ void loop()
 		int v = Serial2.read();
 		Serial.write((uint8_t)v);
 	}
-  }
 }
