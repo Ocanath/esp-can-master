@@ -25,19 +25,7 @@ dartt_mctl_params_t motors[NUM_MOTORS] = {
 				},
 		}
 };
-//statically allocate buffer aliases to our copies of the motor control structures
-buffer_t dartt_mctl_aliases[NUM_MOTORS] = {
-		{
-				.buf = (unsigned char *)(&motors[0]),
-				.size = sizeof(dartt_mctl_params_t),
-				.len = 0
-		},
-		{
-				.buf = (unsigned char *)(&motors[1]),
-				.size = sizeof(dartt_mctl_params_t),
-				.len = 0
-		}
-};
+
 
 
 //dartt_weapon_params_t weapon = {};	//todo: implement this. module number should be hardcoded to 3
@@ -58,88 +46,6 @@ buffer_t dartt_mctl_aliases[NUM_MOTORS] = {
  *
  *
  */
-
-
-
-
-//DELETE - keeping for quick reference when writing DARTT over FDCAN
-//void send_misc_u8(uint16_t id, uint8_t header, uint8_t val)
-//{
-//	for(int i = 0; i < 8; i++)
-//		can_tx_data.d[i] = 0;
-//	can_tx_data.d[0] = header;
-//	can_tx_data.d[1] = val;
-//	can_tx_header.Identifier = (0x7FF - id);	//0x7FF for misc commands
-//	can_tx_header.DataLength = (8 & 0xF) << 16;	//note: len value above 8 will index into higher values. i.e. F corresponds to 64bytes
-//	HAL_FDCAN_AddMessageToTxFifoQ(&hfdcan1, &can_tx_header, can_tx_data.d);
-//}
-//
-//void send_misc_i32(uint16_t id, uint8_t header, int32_t val)
-//{
-//	for(int i = 0; i < 8; i++)
-//		can_tx_data.d[i] = 0;
-//	can_tx_data.d[0] = header;
-//	u32_fmt_t fmt;
-//	fmt.i32 = val;
-//	for(int i = 0; i < sizeof(int32_t); i++)
-//	{
-//		can_tx_data.d[i+1] = fmt.u8[i];
-//	}
-//	can_tx_data.d[1] = val;
-//	can_tx_header.Identifier = (0x7FF - id);	//0x7FF for misc commands
-//	can_tx_header.DataLength = (8 & 0xF) << 16;	//note: len value above 8 will index into higher values. i.e. F corresponds to 64bytes
-//	HAL_FDCAN_AddMessageToTxFifoQ(&hfdcan1, &can_tx_header, can_tx_data.d);
-//	HAL_Delay(1);	//delay to let the message go out
-//}
-//
-
-//this wrapper should be effective for dartt commands
-//todo: Test with logic analyzer!
-void send_motor_i32(uint16_t id, int32_t val)
-{
-	//	can_tx_data.i32[0] = val;
-	unsigned char * cpy_buf = (unsigned char *)(&val);
-	for(int i = 0; i < sizeof(int32_t); i++)
-	{
-		can_tx.buf[i] = cpy_buf[i];
-	}
-	can_tx_header.Identifier = id;	//0x7FF for misc commands
-	can_tx_header.DataLength = FDCAN_DLC_BYTES_4;	//note: len value above 8 will index into higher values. i.e. F corresponds to 64bytes
-	HAL_FDCAN_AddMessageToTxFifoQ(&hfdcan1, &can_tx_header, can_tx.buf);
-	while((hfdcan1.Instance->TXFQS & FDCAN_TXFQS_TFQF) != 0U);
-}
-
-
-
-//typedef struct m_motor_t
-//{
-//	uint16_t id;
-//	int32_t can_command;
-//
-//	int32_t position;
-//	int16_t current;
-//	int16_t velocity;
-//
-//	uint8_t control_mode;
-//	//position control iq vq settings
-//	uint8_t enabled_uart_encoder;
-//	uint8_t led_state;
-//}m_motor_t;
-//
-//static m_motor_t motors[NUM_MOTORS] =
-//{
-//			{
-//					.id = 7,
-//					.control_mode = SET_SINUSOIDAL_MODE,
-//					.led_state = 1
-//			},
-//			{
-//					.id = 8,
-//					.control_mode = SET_SINUSOIDAL_MODE,
-//					.led_state = 1
-//			}
-//};
-
 
 int32_t m1_velocitypos = 0;
 int32_t m2_velocitypos = 0;
@@ -184,6 +90,26 @@ int create_fdcan_struct_write_frame(
 	return dartt_create_write_frame(&write_msg, TYPE_ADDR_CRC_MESSAGE, output_frame);
 }
 
+void write_motor_int32_field(unsigned char * pfield, dartt_mctl_params_t * motor)
+{
+	buffer_t field =
+	{
+			.buf = pfield,
+			.size = sizeof(int32_t),
+			.len = sizeof(int32_t)
+	};
+	buffer_t alias =
+	{
+			.buf = (unsigned char *)(motor),
+			.size = sizeof(dartt_mctl_params_t),
+			.len = 0
+	};
+	if(create_fdcan_struct_write_frame(&field, &alias, &can_tx) == SERIAL_PROTOCOL_SUCCESS)
+	{
+		send_fdcan_frame(dartt_get_complementary_address(motor->fds_mp.module_number), &can_tx);
+	}
+}
+
 int main(void)
 {
 	HAL_Init();
@@ -208,34 +134,12 @@ int main(void)
 	while(1)
 	{
 		int i = 0;
-		{
-			motors[i].open_loop_vd++;
-			buffer_t field =
-			{
-					.buf = (unsigned char *)(&motors[i].open_loop_vd),
-					.size = sizeof(int32_t),
-					.len = sizeof(int32_t)
-			};
-			if(create_fdcan_struct_write_frame(&field, &dartt_mctl_aliases[i], &can_tx) == SERIAL_PROTOCOL_SUCCESS)
-			{
-				send_fdcan_frame(dartt_get_complementary_address(motors[i].fds_mp.module_number), &can_tx);
-			}
-			HAL_Delay(1000);
-		}
-		{
-			motors[i].open_loop_vq++;
-			buffer_t field =
-			{
-					.buf = (unsigned char *)(&motors[i].open_loop_vq),
-					.size = sizeof(int32_t),
-					.len = sizeof(int32_t)
-			};
-			if(create_fdcan_struct_write_frame(&field, &dartt_mctl_aliases[i], &can_tx) == SERIAL_PROTOCOL_SUCCESS)
-			{
-				send_fdcan_frame(dartt_get_complementary_address(motors[i].fds_mp.module_number), &can_tx);
-			}
-			HAL_Delay(1000);
-		}
+		motors[i].open_loop_vd++;
+		write_motor_int32_field((unsigned char *)(&motors[i].open_loop_vd), &motors[i]);
+		HAL_Delay(1000);
+		motors[i].open_loop_vq++;
+		write_motor_int32_field((unsigned char *)(&motors[i].open_loop_vq), &motors[i]);
+		HAL_Delay(1000);
 	}
 
 	//	send_motor_i32(motors[0].id, m0_offset);
