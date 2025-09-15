@@ -11,6 +11,21 @@
 #include "dartt_controller_params.h"
 #include "dartt.h"
 
+
+
+
+/**
+ * TODO:
+ *
+ * 1. Merge back the interrupt handlers from the main sauron gimbal controller into this branch. Parse and upsample the commands in exactly the same format.
+ * 1.1. Theoretically, should be able to update the existing sauron with all this firmware and it'll work... interesting
+ * 2. Add motor control offsets to master fds/filesystem
+ * 3. test with control firmware and ESP32 passthrough
+ * 4. wire uart audio with original interrupt COBS to both controllers and let her rip
+ * 5. upgrade cobs handler to dma and make it the gold standard
+ *
+ */
+
 dartt_mctl_params_t motors[NUM_MOTORS] = {
 		{
 				.fds_mp =
