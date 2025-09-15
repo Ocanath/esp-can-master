@@ -29,6 +29,9 @@ extern FDCAN_RxHeaderTypeDef   can_rx_header;
 extern uint32_t			can_tx_mailbox;
 extern buffer_t can_tx;
 
+int send_fdcan_frame(uint16_t id, buffer_t * buffer);
+
+
 void FDCAN_Config(void);
 
 

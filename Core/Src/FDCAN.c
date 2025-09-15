@@ -38,6 +38,57 @@ buffer_t can_tx =
 		.len = 0
 };
 
+/*
+ * Generic can buffer send function
+ * */
+int send_fdcan_frame(uint16_t id, buffer_t * buffer)
+{
+	can_tx_header.Identifier = id;
+	if(buffer->len > 0 && buffer->len <= 8)
+	{
+		can_tx_header.DataLength = (buffer->len & 0xF) << 16;
+	}
+	else if (buffer->len > 8)	//could build a function that uses division and modulo arithmetic to accomplish this but i believe this is more performant for short messages cus you fall thru the if statements
+	{
+		if(buffer->len == 12)
+		{
+			can_tx_header.DataLength = FDCAN_DLC_BYTES_12;
+		}
+		else if(buffer->len == 16)
+		{
+			can_tx_header.DataLength = FDCAN_DLC_BYTES_16;
+		}
+		else if(buffer->len == 20)
+		{
+			can_tx_header.DataLength = FDCAN_DLC_BYTES_20;
+		}
+		else if(buffer->len == 24)
+		{
+			can_tx_header.DataLength = FDCAN_DLC_BYTES_24;
+		}
+		else if(buffer->len == 32)
+		{
+			can_tx_header.DataLength = FDCAN_DLC_BYTES_32;
+		}
+		else if(buffer->len == 48)
+		{
+			can_tx_header.DataLength = FDCAN_DLC_BYTES_48;
+		}
+		else if(buffer->len == 64)
+		{
+			can_tx_header.DataLength = FDCAN_DLC_BYTES_64;
+		}
+	}
+	else
+	{
+		return ERROR_INVALID_ARGUMENT;
+	}
+
+	HAL_FDCAN_AddMessageToTxFifoQ(&hfdcan1, &can_tx_header, buffer->buf);
+	while((hfdcan1.Instance->TXFQS & FDCAN_TXFQS_TFQF) != 0U);
+
+	return SERIAL_PROTOCOL_SUCCESS;
+}
 
 void FDCAN_Config(void)
 {
