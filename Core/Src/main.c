@@ -26,7 +26,18 @@ dartt_mctl_params_t motors[NUM_MOTORS] = {
 		}
 };
 
-
+buffer_t motor_command_alias[NUM_MOTORS] = {
+		{
+				.buf = (unsigned char *)(&motors[0].command_word),
+				.size = sizeof(int32_t),
+				.len = sizeof(int32_t)
+		},
+		{
+				.buf = (unsigned char *)(&motors[1].command_word),
+				.size = sizeof(int32_t),
+				.len = sizeof(int32_t)
+		}
+};
 
 //dartt_weapon_params_t weapon = {};	//todo: implement this. module number should be hardcoded to 3
 
@@ -250,65 +261,37 @@ int main(void)
 		}
 	}
 
-	motors[0].mctl_vq.out_sat = 200;
-	write_fdcan_motor_int32_field((unsigned char *)(&motors[0].mctl_vq.out_sat), &motors[0]);
-//	motors[0].control_mode = PCTL_VQ;
-//	write_fdcan_motor_int32_field((unsigned char *)(&motors[0].control_mode), &motors[0]);
 
-	motors[1].mctl_vq.out_sat = 200;
-	write_fdcan_motor_int32_field((unsigned char *)(&motors[1].mctl_vq.out_sat), &motors[1]);
-//	motors[1].control_mode = PCTL_VQ;
-//	write_fdcan_motor_int32_field((unsigned char *)(&motors[1].control_mode), &motors[1]);
+	for(int i = 0; i < NUM_MOTORS; i++)
+	{
+		motors[i].mctl_vq.out_sat = 300;
+		write_fdcan_motor_int32_field((unsigned char *)(&motors[i].mctl_vq.out_sat), &motors[i]);
+		motors[i].control_mode = PCTL_VQ;
+		write_fdcan_motor_int32_field((unsigned char *)(&motors[i].en_blink_led), &motors[i]);	//note - have to use the 4 byte aligned address.
+
+//		motors[i].mctl_iq.out_sat = 1000;
+//		write_fdcan_motor_int32_field((unsigned char *)(&motors[i].mctl_iq.out_sat), &motors[i]);
+//		motors[i].control_mode = PCTL_IQ;
+//		write_fdcan_motor_int32_field((unsigned char *)(&motors[i].en_blink_led), &motors[i]);	//note - have to use the 4 byte aligned address.
+
+	}
 
 	int32_t m0_pos = 0;
 	int32_t m1_pos = 0;
+
 	while(1)
 	{
 		uint32_t tick = HAL_GetTick();
-		m0_pos = sin_14b(wrap_2pi_14b(tick*10));
-		m1_pos = cos_14b(wrap_2pi_14b(tick*10));
+		motors[0].command_word = 0;
+		motors[1].command_word = 0;
+//		motors[0].command_word = sin_14b(wrap_2pi_14b(tick*10))*PI_14B/(1<<14);
+//		motors[1].command_word = cos_14b(wrap_2pi_14b(tick*10))*PI_14B/(1<<14);
 
-		unsigned char * pm0 = (unsigned char *)(&m0_pos);
-		for(can_tx.len = 0; can_tx.len < sizeof(int32_t); can_tx.len++)
+		for(int i = 0; i < NUM_MOTORS; i++)
 		{
-			can_tx.buf[can_tx.len] = pm0[can_tx.len];
+			send_fdcan_frame(motors[i].fds_mp.module_number, &motor_command_alias[i]);
+			read_motor_reply(1000);
 		}
-		send_fdcan_frame(motors[0].fds_mp.module_number, &can_tx);
-		read_motor_reply(1000);
-
-		unsigned char * pm1 = (unsigned char *)(&m1_pos);
-		for(can_tx.len = 0; can_tx.len < sizeof(int32_t); can_tx.len++)
-		{
-			can_tx.buf[can_tx.len] = pm1[can_tx.len];
-		}
-		send_fdcan_frame(motors[1].fds_mp.module_number, &can_tx);
-		read_motor_reply(1000);
-
-
-
-
-
-
-
-
-
-
-
-
-
-//		for(int i = 0; i < NUM_MOTORS; i++)
-//		{
-//			motors[i].open_loop_vd++;
-//			write_fdcan_motor_int32_field((unsigned char *)(&motors[i].open_loop_vd), &motors[i]);
-//			motors[i].open_loop_vd = 0;
-//			read_fdcan_motor_field((unsigned char *)&motors[i].open_loop_vd, sizeof(int32_t), &motors[i]);
-//			HAL_Delay(100);
-//			motors[i].open_loop_vq++;
-//			write_fdcan_motor_int32_field((unsigned char *)(&motors[i].open_loop_vq), &motors[i]);
-//			motors[i].open_loop_vq = 0;
-//			read_fdcan_motor_field((unsigned char *)&motors[i].open_loop_vq, sizeof(int32_t), &motors[i]);
-//			HAL_Delay(100);
-//		}
 	}
 
 	//	send_motor_i32(motors[0].id, m0_offset);
