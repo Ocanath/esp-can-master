@@ -41,3 +41,21 @@ uint16_t get_crc16(uint8_t* arr, size_t size)
     return crc;
 }   
 
+
+
+
+/*
+Generic hex checksum calculation.
+TODO: use this in the psyonic API
+*/
+uint16_t fletchers_checksum16(uint16_t* arr, int size)
+{
+	int16_t checksum = 0;
+	int16_t fchk = 0;
+	for (int i = 0; i < size; i++)
+	{
+		checksum += (int16_t)arr[i];
+		fchk += checksum;
+	}
+	return fchk;
+}

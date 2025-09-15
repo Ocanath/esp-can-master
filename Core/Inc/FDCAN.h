@@ -9,6 +9,7 @@
 #define INC_FDCAN_H_
 #include "init.h"
 #include "fds.h"
+#include "dartt_mctl_params.h"
 #include "dartt.h"
 
 #define PAYLOAD_SIZE_CAN 64
@@ -37,7 +38,14 @@ extern can_payload_t can_rx_mem;
 extern buffer_t can_rx;
 
 int send_fdcan_frame(uint16_t id, buffer_t * buffer);
-
+int create_fdcan_struct_write_frame(
+		buffer_t * field,
+		buffer_t * device_mem,
+		buffer_t * output_frame);
+int write_fdcan_motor_int32_field(unsigned char * pfield, dartt_mctl_params_t * motor);
+int read_motor_reply(dartt_mctl_params_t * motor, uint32_t timeout);
+int read_reply_blocking_fdcan_read(misc_read_message_t * read_msg, buffer_t * config_ref, uint32_t timeout);
+int read_fdcan_motor_field(unsigned char * pfield, uint16_t num_bytes, dartt_mctl_params_t * motor);
 
 void FDCAN_Config(void);
 

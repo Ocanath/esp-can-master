@@ -5,6 +5,7 @@
 
 uint16_t get_checksum16(uint16_t* arr, size_t size);
 uint16_t get_crc16(uint8_t* arr, size_t size);
+uint16_t fletchers_checksum16(uint16_t* arr, int size);
 
 #endif
 

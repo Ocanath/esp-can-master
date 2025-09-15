@@ -48,6 +48,26 @@ buffer_t can_rx =
 		.len = 0
 };
 
+//lookup table. index is the shifted DATALENGTH value, and value is the true message length
+static uint8_t fdcan_length_lookup[] =
+{
+		0,
+		1,
+		2,
+		3,
+		4,
+		5,
+		6,
+		7,
+		8,
+		12,
+		16,
+		20,
+		24,
+		32,
+		48,
+		64
+};
 
 /*
  * Generic can buffer send function
@@ -100,6 +120,150 @@ int send_fdcan_frame(uint16_t id, buffer_t * buffer)
 
 	return SERIAL_PROTOCOL_SUCCESS;
 }
+
+
+
+/*Helper Function to create a struct based dartt write frame*/
+int create_fdcan_struct_write_frame(
+		buffer_t * field,
+		buffer_t * device_mem,
+		buffer_t * output_frame)
+{
+	// Calculate the field index using index_of_field
+	int field_index = index_of_field((void*)field->buf, (void*)device_mem->buf, device_mem->size);
+	if(field_index < 0)
+	{
+		return field_index; // Return the error code
+	}
+	if(field->len > device_mem->size)
+	{
+		return ERROR_MEMORY_OVERRUN;
+	}
+
+	// Create the write message
+	misc_write_message_t write_msg = {
+			.address = 0,	//ignore address
+			.index = (uint16_t)field_index,
+			.payload = {
+					.buf = field->buf,
+					.size = device_mem->size - field->len,
+					.len = field->len
+			}
+	};
+
+	// Create the frame (TYPE_SERIAL_MESSAGE only)
+	return dartt_create_write_frame(&write_msg, TYPE_ADDR_CRC_MESSAGE, output_frame);
+}
+
+int write_fdcan_motor_int32_field(unsigned char * pfield, dartt_mctl_params_t * motor)
+{
+	buffer_t field =
+	{
+			.buf = pfield,
+			.size = sizeof(int32_t),
+			.len = sizeof(int32_t)
+	};
+	buffer_t alias =
+	{
+			.buf = (unsigned char *)(motor),
+			.size = sizeof(dartt_mctl_params_t),
+			.len = 0
+	};
+	if(create_fdcan_struct_write_frame(&field, &alias, &can_tx) == SERIAL_PROTOCOL_SUCCESS)
+	{
+		return send_fdcan_frame(dartt_get_complementary_address(motor->fds_mp.module_number), &can_tx);
+	}
+	else
+	{
+		return ERROR_INVALID_ARGUMENT;	//bad
+	}
+}
+
+
+
+
+int read_motor_reply(dartt_mctl_params_t * motor, uint32_t timeout)
+{
+	uint32_t start = HAL_GetTick();
+	while((HAL_GetTick() - start) < timeout)
+	{
+		if(HAL_FDCAN_GetRxFifoFillLevel(&hfdcan1, FDCAN_RX_FIFO0) != 0)
+		{
+			HAL_FDCAN_GetRxMessage(&hfdcan1, FDCAN_RX_FIFO0, &can_rx_header, can_rx.buf);
+			can_rx.len = (can_rx_header.DataLength >> 16) & 0xF;
+			if(can_rx.len > 8)
+			{
+				if(can_rx.len < sizeof(fdcan_length_lookup))
+				{
+					can_rx.len = fdcan_length_lookup[can_rx.len];
+				}
+			}
+			if(can_rx_header.Identifier == MASTER_MOTOR_ADDRESS)	//motor command - dartt specifies custom implementation
+			{
+				//this shouldn't happen, because we should only call this on dartt misc reads
+				motor->theta_rem_m = can_rx_mem.i32[0];
+				motor->iq = can_rx_mem.i16[2];	//note - this is divided by a number to get it to fit in a 16bit word - still fuzzy on how this works honestly, i forgor
+				motor->dtheta_fixedpoint_rad_p_sec = can_rx_mem.i16[3];
+				return 0;	//return on successful matching reply
+			}
+		}
+	}
+	return FDCAN_READ_TIMEOUT;
+}
+
+int read_reply_blocking_fdcan_read(misc_read_message_t * read_msg, buffer_t * config_ref, uint32_t timeout)
+{
+	uint32_t start = HAL_GetTick();
+	while((HAL_GetTick() - start) < timeout)
+	{
+		if(HAL_FDCAN_GetRxFifoFillLevel(&hfdcan1, FDCAN_RX_FIFO0) != 0)
+		{
+			HAL_FDCAN_GetRxMessage(&hfdcan1, FDCAN_RX_FIFO0, &can_rx_header, can_rx.buf);
+			can_rx.len = (can_rx_header.DataLength >> 16) & 0xF;
+			if(can_rx.len > 8)
+			{
+				if(can_rx.len < sizeof(fdcan_length_lookup))
+				{
+					can_rx.len = fdcan_length_lookup[can_rx.len];
+				}
+			}
+			if(can_rx_header.Identifier == MASTER_MOTOR_ADDRESS)	//motor command - dartt specifies custom implementation
+			{
+				//this shouldn't happen, because we should only call this on dartt misc reads
+			}
+			else if (can_rx_header.Identifier == MASTER_MISC_ADDRESS)
+			{
+				payload_layer_msg_t pld_msg = {};
+			    dartt_frame_to_payload(&can_rx, TYPE_ADDR_CRC_MESSAGE, PAYLOAD_ALIAS, &pld_msg);	//calling this function is unnecessary - can just do manually if desired. keeping dartt lib usage consistent tho
+				return dartt_parse_read_reply(&pld_msg, read_msg, config_ref);
+			}
+		}
+	}
+	return FDCAN_READ_TIMEOUT;
+}
+
+int read_fdcan_motor_field(unsigned char * pfield, uint16_t num_bytes, dartt_mctl_params_t * motor)
+{
+	int field_index = index_of_field(pfield, (unsigned char *)(motor), sizeof(dartt_mctl_params_t));
+	if(field_index < 0)
+	{
+		return field_index;
+	}
+	misc_read_message_t read_msg = {};
+	//ignore address
+	read_msg.index = field_index;
+	read_msg.num_bytes = num_bytes;	//numbytes is HERE! you can deploy another helper that does the same thing
+	dartt_create_read_frame(&read_msg, TYPE_ADDR_CRC_MESSAGE, &can_tx);
+	send_fdcan_frame(dartt_get_complementary_address(motor->fds_mp.module_number), &can_tx);
+	buffer_t motor_alias =
+	{
+			.buf = (unsigned char *)(motor),
+			.size = sizeof(dartt_mctl_params_t),
+			.len = 0
+	};
+	return read_reply_blocking_fdcan_read(&read_msg, &motor_alias, 50);
+}
+
 
 void FDCAN_Config(void)
 {
