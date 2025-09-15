@@ -9,6 +9,7 @@
 #define INC_FDCAN_H_
 #include "init.h"
 #include "fds.h"
+#include "dartt.h"
 
 #define PAYLOAD_SIZE_CAN 8
 
@@ -25,9 +26,8 @@ typedef union
 
 extern FDCAN_TxHeaderTypeDef   can_tx_header;
 extern FDCAN_RxHeaderTypeDef   can_rx_header;
-extern can_payload_t 			can_tx_data;
-extern can_payload_t 			can_rx_data;
 extern uint32_t			can_tx_mailbox;
+extern buffer_t can_tx;
 
 void FDCAN_Config(void);
 
