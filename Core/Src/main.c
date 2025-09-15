@@ -137,6 +137,31 @@ uint8_t fdcan_lookup[] =
 		64
 };
 
+int read_motor_reply(uint32_t timeout)
+{
+	uint32_t start = HAL_GetTick();
+	while((HAL_GetTick() - start) < timeout)
+	{
+		if(HAL_FDCAN_GetRxFifoFillLevel(&hfdcan1, FDCAN_RX_FIFO0) != 0)
+		{
+			HAL_FDCAN_GetRxMessage(&hfdcan1, FDCAN_RX_FIFO0, &can_rx_header, can_rx.buf);
+			can_rx.len = (can_rx_header.DataLength >> 16) & 0xF;
+			if(can_rx.len > 8)
+			{
+				if(can_rx.len < sizeof(fdcan_lookup))
+				{
+					can_rx.len = fdcan_lookup[can_rx.len];
+				}
+			}
+			if(can_rx_header.Identifier == MASTER_MOTOR_ADDRESS)	//motor command - dartt specifies custom implementation
+			{
+				//this shouldn't happen, because we should only call this on dartt misc reads
+				return 0;	//return on successful matching reply
+			}
+		}
+	}
+	return FDCAN_READ_TIMEOUT;
+}
 
 int read_reply_blocking_fdcan_read(misc_read_message_t * read_msg, buffer_t * config_ref, uint32_t timeout)
 {
@@ -224,21 +249,66 @@ int main(void)
 			gl_rc = read_fdcan_motor_field(&(alias.buf[field]), sizeof(int32_t)*2, &motors[i]);
 		}
 	}
+
+	motors[0].mctl_vq.out_sat = 200;
+	write_fdcan_motor_int32_field((unsigned char *)(&motors[0].mctl_vq.out_sat), &motors[0]);
+//	motors[0].control_mode = PCTL_VQ;
+//	write_fdcan_motor_int32_field((unsigned char *)(&motors[0].control_mode), &motors[0]);
+
+	motors[1].mctl_vq.out_sat = 200;
+	write_fdcan_motor_int32_field((unsigned char *)(&motors[1].mctl_vq.out_sat), &motors[1]);
+//	motors[1].control_mode = PCTL_VQ;
+//	write_fdcan_motor_int32_field((unsigned char *)(&motors[1].control_mode), &motors[1]);
+
+	int32_t m0_pos = 0;
+	int32_t m1_pos = 0;
 	while(1)
 	{
-		for(int i = 0; i < NUM_MOTORS; i++)
+		uint32_t tick = HAL_GetTick();
+		m0_pos = sin_14b(wrap_2pi_14b(tick*10));
+		m1_pos = cos_14b(wrap_2pi_14b(tick*10));
+
+		unsigned char * pm0 = (unsigned char *)(&m0_pos);
+		for(can_tx.len = 0; can_tx.len < sizeof(int32_t); can_tx.len++)
 		{
-			motors[i].open_loop_vd++;
-			write_fdcan_motor_int32_field((unsigned char *)(&motors[i].open_loop_vd), &motors[i]);
-			motors[i].open_loop_vd = 0;
-			read_fdcan_motor_field((unsigned char *)&motors[i].open_loop_vd, sizeof(int32_t), &motors[i]);
-			HAL_Delay(100);
-			motors[i].open_loop_vq++;
-			write_fdcan_motor_int32_field((unsigned char *)(&motors[i].open_loop_vq), &motors[i]);
-			motors[i].open_loop_vq = 0;
-			read_fdcan_motor_field((unsigned char *)&motors[i].open_loop_vq, sizeof(int32_t), &motors[i]);
-			HAL_Delay(100);
+			can_tx.buf[can_tx.len] = pm0[can_tx.len];
 		}
+		send_fdcan_frame(motors[0].fds_mp.module_number, &can_tx);
+		read_motor_reply(1000);
+
+		unsigned char * pm1 = (unsigned char *)(&m1_pos);
+		for(can_tx.len = 0; can_tx.len < sizeof(int32_t); can_tx.len++)
+		{
+			can_tx.buf[can_tx.len] = pm1[can_tx.len];
+		}
+		send_fdcan_frame(motors[1].fds_mp.module_number, &can_tx);
+		read_motor_reply(1000);
+
+
+
+
+
+
+
+
+
+
+
+
+
+//		for(int i = 0; i < NUM_MOTORS; i++)
+//		{
+//			motors[i].open_loop_vd++;
+//			write_fdcan_motor_int32_field((unsigned char *)(&motors[i].open_loop_vd), &motors[i]);
+//			motors[i].open_loop_vd = 0;
+//			read_fdcan_motor_field((unsigned char *)&motors[i].open_loop_vd, sizeof(int32_t), &motors[i]);
+//			HAL_Delay(100);
+//			motors[i].open_loop_vq++;
+//			write_fdcan_motor_int32_field((unsigned char *)(&motors[i].open_loop_vq), &motors[i]);
+//			motors[i].open_loop_vq = 0;
+//			read_fdcan_motor_field((unsigned char *)&motors[i].open_loop_vq, sizeof(int32_t), &motors[i]);
+//			HAL_Delay(100);
+//		}
 	}
 
 	//	send_motor_i32(motors[0].id, m0_offset);
