@@ -16,12 +16,18 @@
 
 /**
  * TODO:
+ * 1. implement master-copy motor-copy DARTT list where two separate copies are maintained - one which only gets updated by DARTT reads,
+ * 		and one which only gets updated to whatever the master wants. Implement a subroutine that infrequently (once per second?) scans a
+ * 		chunk of the master record and compares it to another junk of the slave record. If they mismatch, the master will write a chunk to the motor
+ * 		from the master copy, then	read that chunk back from the motor to the motor copy. If they match, return success, and update to the next
+ * 		chunk. Certain values must be ignored.
  *
- * 1. Merge back the interrupt handlers from the main sauron gimbal controller into this branch. Parse and upsample the commands in exactly the same format.
- * 1.1. Theoretically, should be able to update the existing sauron with all this firmware and it'll work... interesting
+ * 		This will allow us to make sure settings are updated simply by writing values to the master copy.
+ *
+ * 1.1 using this master-motor copy method, re-tune the position control gains. The current position controllers are unstable with the weapon
+ * on.
+ *
  * 2. Add motor control offsets to master fds/filesystem
- * 3. test with control firmware and ESP32 passthrough
- * 4. wire uart audio with original interrupt COBS to both controllers and let her rip
  * 5. upgrade cobs handler to dma and make it the gold standard
 
  * OPTIONAL - more in scope for a new project, since this is not required for MVP functionality
@@ -29,35 +35,37 @@
  * 7. upgrade all comms to COBS+DARTT
  *
  *
+ *
+ *
  */
 
-dartt_mctl_params_t motors[NUM_MOTORS] = {
-		{
-				.fds_mp =
-				{
-						.module_number = 1	//hardcode the module numbers
-				},
-		},
-		{
-				.fds_mp =
-				{
-						.module_number = 2
-				},
-		}
-};
+//dartt_mctl_params_t motors[NUM_MOTORS] = {
+//		{
+//				.fds_mp =
+//				{
+//						.module_number = 1	//hardcode the module numbers
+//				},
+//		},
+//		{
+//				.fds_mp =
+//				{
+//						.module_number = 2
+//				},
+//		}
+//};
 
-buffer_t motor_command_alias[NUM_MOTORS] = {
-		{
-				.buf = (unsigned char *)(&motors[0].command_word),
-				.size = sizeof(int32_t),
-				.len = sizeof(int32_t)
-		},
-		{
-				.buf = (unsigned char *)(&motors[1].command_word),
-				.size = sizeof(int32_t),
-				.len = sizeof(int32_t)
-		}
-};
+//buffer_t motor_command_alias[NUM_MOTORS] = {
+//		{
+//				.buf = (unsigned char *)(&motors[0].command_word),
+//				.size = sizeof(int32_t),
+//				.len = sizeof(int32_t)
+//		},
+//		{
+//				.buf = (unsigned char *)(&motors[1].command_word),
+//				.size = sizeof(int32_t),
+//				.len = sizeof(int32_t)
+//		}
+//};
 
 //dartt_weapon_params_t weapon = {};	//todo: implement this. module number should be hardcoded to 3
 
@@ -119,28 +127,52 @@ int main(void)
 	//	int32_t m0_offset = -990;
 	//	int32_t m1_offset = 16921;
 
-	//create a buffer_t for can transmissions
+	//initialize both command and peripheral buffers
 	for(int i = 0; i < NUM_MOTORS; i++)
 	{
-		buffer_t alias =
+		//read the entire motor into our peripheral/read copy
+		buffer_t periph_alias =
 		{
-				.buf = (unsigned char *)(&motors[i]),
+				.buf = (unsigned char *)(&motors_periph[i]),
+				.size = sizeof(dartt_mctl_params_t),
+				.len = 0
+		};	//buffer alias to the peripheral (read) struct copy
+		for(int field = 0; field < sizeof(dartt_mctl_params_t); field += sizeof(int32_t)*2)
+		{
+			gl_rc = read_fdcan_motor_field(&(periph_alias.buf[field]), sizeof(int32_t)*2, &motors_periph[i]);	//read the whole memory in 8 byte chunks
+		}
+
+		//copy what we read to the command copy
+		buffer_t command_alias =
+		{
+				.buf = (unsigned char *)(&dp_ctl.motors_ctl[i]),
 				.size = sizeof(dartt_mctl_params_t),
 				.len = 0
 		};
-		for(int field = 0; field < sizeof(dartt_mctl_params_t); field += sizeof(int32_t)*2)
+		for(int b = 0; b < command_alias.size && b < periph_alias.size; b++)
 		{
-			gl_rc = read_fdcan_motor_field(&(alias.buf[field]), sizeof(int32_t)*2, &motors[i]);
+			command_alias.buf[b] = periph_alias.buf[b];
 		}
 	}
 
 
 	for(int i = 0; i < NUM_MOTORS; i++)
 	{
-		motors[i].mctl_vq.out_sat = 300;
-		write_fdcan_motor_int32_field((unsigned char *)(&motors[i].mctl_vq.out_sat), &motors[i]);
-		motors[i].control_mode = PCTL_VQ;
-		write_fdcan_motor_int32_field((unsigned char *)(&motors[i].en_blink_led), &motors[i]);	//note - have to use the 4 byte aligned address.
+		dp_ctl.motors_ctl[i].mctl_vq.out_sat = 300;
+		write_fdcan_motor_int32_field((unsigned char *)(&dp_ctl.motors_ctl[i].mctl_vq.out_sat), &dp_ctl.motors_ctl[i]);
+		dp_ctl.motors_ctl[i].mctl_vq.kpki.kp.i32 = 150;
+		write_fdcan_motor_int32_field((unsigned char *)(&dp_ctl.motors_ctl[i].mctl_vq.kpki.kp.i32), &dp_ctl.motors_ctl[i]);
+		dp_ctl.motors_ctl[i].mctl_vq.kpki.ki.i32 = 1;
+		write_fdcan_motor_int32_field((unsigned char *)(&dp_ctl.motors_ctl[i].mctl_vq.kpki.ki.i32), &dp_ctl.motors_ctl[i]);
+		dp_ctl.motors_ctl[i].mctl_vq.kpki.ki.radix = 12;
+		write_fdcan_motor_int32_field((unsigned char *)(&dp_ctl.motors_ctl[i].mctl_vq.kpki.ki.radix), &dp_ctl.motors_ctl[i]);
+		dp_ctl.motors_ctl[i].mctl_vq.kpki.x_integral_div = 50;
+		write_fdcan_motor_int32_field((unsigned char *)(&dp_ctl.motors_ctl[i].mctl_vq.kpki.x_integral_div), &dp_ctl.motors_ctl[i]);
+		dp_ctl.motors_ctl[i].mctl_vq.kd.i32 = 15;
+		write_fdcan_motor_int32_field((unsigned char *)(&dp_ctl.motors_ctl[i].mctl_vq.kd.i32), &dp_ctl.motors_ctl[i]);
+
+		dp_ctl.motors_ctl[i].control_mode = PCTL_VQ;
+		write_fdcan_motor_int32_field((unsigned char *)(&dp_ctl.motors_ctl[i].en_blink_led), &dp_ctl.motors_ctl[i]);	//note - have to use the 4 byte aligned address.
 
 //		motors[i].mctl_iq.out_sat = 1000;
 //		write_fdcan_motor_int32_field((unsigned char *)(&motors[i].mctl_iq.out_sat), &motors[i]);
@@ -156,6 +188,10 @@ int main(void)
 	{
 		m_mcpy(&upsampling_filter[i], &gl_upsampling_filter, sizeof(iirSOS));
 	}
+	/*todo: initialize the filters by operating passively/no motion and passing motors_periph.theta_rem_m
+	 * into the filter structure for a fixed amount of time (couple hundred ms?). Then, you set
+	 * motors_ctl.command_word = motors_periph.theta_rem_m...? - problem occurs if you wrap theta_rem_m...
+	*/
 	uint32_t upsample_ts = 0;
 	uint32_t led_ts = 0;
 
@@ -174,8 +210,8 @@ int main(void)
 			float m0filt = sos_f(&upsampling_filter[0], (float)(-gl_crq.commands[0]));
 			float m1filt = sos_f(&upsampling_filter[1], (float)(-gl_crq.commands[1]));
 
-			motors[0].command_word = wrap_2pi_14b((int32_t)m0filt + m0_offset);	//todo: verify sign is correct
-			motors[1].command_word = wrap_2pi_14b((int32_t)m1filt + m1_offset);
+			dp_ctl.motors_ctl[0].command_word = wrap_2pi_14b((int32_t)m0filt + m0_offset);	//todo: verify sign is correct
+			dp_ctl.motors_ctl[1].command_word = wrap_2pi_14b((int32_t)m1filt + m1_offset);
 		}
 
 
@@ -183,8 +219,8 @@ int main(void)
 
 		for(int i = 0; i < NUM_MOTORS; i++)
 		{
-			send_fdcan_frame(motors[i].fds_mp.module_number, &motor_command_alias[i]);
-			read_motor_reply(&motors[i], 1000);
+			send_fdcan_frame(dp_ctl.motors_ctl[i].fds_mp.module_number, &motor_ctl_command_alias[i]);
+			read_motor_reply(&motors_periph[i], 1000);
 		}
 
 
@@ -204,8 +240,8 @@ int main(void)
 			 * */
 			int32_t * pbi32 = (int32_t*)(&prestuff[0]);
 			uint16_t * pbu16 = (uint16_t*)(&prestuff[0]);
-			pbi32[0] = motors[0].theta_rem_m; //sizeof(int32_t)*index + sizeof(int32_t) - 1
-			pbi32[1] = motors[1].theta_rem_m;
+			pbi32[0] = motors_periph[0].theta_rem_m; //sizeof(int32_t)*index + sizeof(int32_t) - 1
+			pbi32[1] = motors_periph[1].theta_rem_m;
 			pbi32[2] = tick;
 			pbu16[6] = fletchers_checksum16(pbu16, 6);
 
