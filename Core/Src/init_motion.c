@@ -59,9 +59,9 @@ void read_gun_memory(void)
 			.size = sizeof(dartt_gun_params_t),
 			.len = 0
 	};
-	for(int field = 0; field < sizeof(dartt_gun_params_t); field += sizeof(int32_t)*2)
+	for(int field = 0; field < sizeof(dartt_gun_params_t); field += sizeof(int32_t))
 	{
-		gl_rc = read_fdcan_gun_field(&(periph_alias.buf[field]), sizeof(int32_t)*2, &gun_periph);	//read the whole memory in 8 byte chunks
+		gl_rc = read_fdcan_gun_field(&(periph_alias.buf[field]), sizeof(int32_t), &gun_periph);	//read the whole memory in 8 byte chunks
 	}
 	buffer_t command_alias =
 	{

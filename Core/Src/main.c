@@ -144,6 +144,12 @@ int main(void)
 			}
 		}
 
+		if(dp_ctl.gun_ctl.shot_request != 0)
+		{
+			write_fdcan_gun_int32_field((unsigned char *)(&dp_ctl.gun_ctl.shot_request), &(dp_ctl.gun_ctl));
+			dp_ctl.gun_ctl.shot_request = 0;	//flag as handled for non-repeat shots
+		}
+
 		/*LED blink*/
 		if(tick - led_ts > 100)
 		{
