@@ -10,7 +10,7 @@
 #include "dartt_mctl_params.h"
 #include "dartt_controller_params.h"
 #include "dartt.h"
-
+#include "Smoothing.h"
 
 
 
@@ -106,9 +106,13 @@ void ppp_rx_cplt_callback(uart_it_t * h)
 	}
 }
 
-uint8_t firststuff[14*2 + 2];
+float qd[NUM_MOTORS] = {};
+smooth_mem_t sm[NUM_MOTORS]  = {};
+
+
 
 int gl_rc = 0;
+
 int main(void)
 {
 	HAL_Init();
@@ -156,10 +160,9 @@ int main(void)
 	}
 
 
+	//write out pctl modification settings
 	for(int i = 0; i < NUM_MOTORS; i++)
 	{
-		dp_ctl.motors_ctl[i].mctl_vq.out_sat = 300;
-		write_fdcan_motor_int32_field((unsigned char *)(&dp_ctl.motors_ctl[i].mctl_vq.out_sat), &dp_ctl.motors_ctl[i]);
 		dp_ctl.motors_ctl[i].mctl_vq.kpki.kp.i32 = 150;
 		write_fdcan_motor_int32_field((unsigned char *)(&dp_ctl.motors_ctl[i].mctl_vq.kpki.kp.i32), &dp_ctl.motors_ctl[i]);
 		dp_ctl.motors_ctl[i].mctl_vq.kpki.ki.i32 = 1;
@@ -168,18 +171,63 @@ int main(void)
 		write_fdcan_motor_int32_field((unsigned char *)(&dp_ctl.motors_ctl[i].mctl_vq.kpki.ki.radix), &dp_ctl.motors_ctl[i]);
 		dp_ctl.motors_ctl[i].mctl_vq.kpki.x_integral_div = 50;
 		write_fdcan_motor_int32_field((unsigned char *)(&dp_ctl.motors_ctl[i].mctl_vq.kpki.x_integral_div), &dp_ctl.motors_ctl[i]);
-		dp_ctl.motors_ctl[i].mctl_vq.kd.i32 = 15;
+		dp_ctl.motors_ctl[i].mctl_vq.kd.i32 = 20;
 		write_fdcan_motor_int32_field((unsigned char *)(&dp_ctl.motors_ctl[i].mctl_vq.kd.i32), &dp_ctl.motors_ctl[i]);
-
 		dp_ctl.motors_ctl[i].control_mode = PCTL_VQ;
 		write_fdcan_motor_int32_field((unsigned char *)(&dp_ctl.motors_ctl[i].en_blink_led), &dp_ctl.motors_ctl[i]);	//note - have to use the 4 byte aligned address.
+	}
 
-//		motors[i].mctl_iq.out_sat = 1000;
-//		write_fdcan_motor_int32_field((unsigned char *)(&motors[i].mctl_iq.out_sat), &motors[i]);
-//		motors[i].control_mode = PCTL_IQ;
-//		write_fdcan_motor_int32_field((unsigned char *)(&motors[i].en_blink_led), &motors[i]);	//note - have to use the 4 byte aligned address.
+	//activate motion
+	for(int i = 0; i < NUM_MOTORS; i++)
+	{
+		dp_ctl.motors_ctl[i].mctl_vq.out_sat = 300;
+		write_fdcan_motor_int32_field((unsigned char *)(&dp_ctl.motors_ctl[i].mctl_vq.out_sat), &dp_ctl.motors_ctl[i]);
+	}
+	//immediately start smoothing behavior
+	float period = 5.f;
+	uint32_t start_ts = HAL_GetTick();
+	uint32_t tick = HAL_GetTick();
+	uint32_t uart_tx_ts = 0;
+	for(int i = 0; i < NUM_MOTORS; i++)
+	{
+		init_smoothing_mem(&sm[i]);
+	}
+//	while( (tick - start_ts) < (int32_t)(period*1000.f))
+	while(1)
+	{
+		tick = HAL_GetTick();
+
+
+		for(int i = 0; i < NUM_MOTORS; i++)
+		{
+			float q = ((float)motors_periph[i].theta_rem_m)/((float)(1<<14));
+			smooth_qd(0.f, period, q, &sm[i], &qd[i], tick);
+
+			dp_ctl.motors_ctl[i].command_word = wrap_2pi_14b(qd[i]*((float)(1<<14)));	//todo: verify sign is correct
+
+			send_fdcan_frame(dp_ctl.motors_ctl[i].fds_mp.module_number, &motor_ctl_command_alias[i]);
+			read_motor_reply(&motors_periph[i], 1000);
+		}
+
+		if(tick - uart_tx_ts > 5 && m_huart2.bytes_to_send == 0)	//todo upgrade to cobs
+		{
+			uart_tx_ts = tick;
+			uint32_t prestuff[5] = {0};	//motor1 pos, motor2 pos, fletcher's
+			int fidx = 0;
+			prestuff[fidx++] = wrap_2pi_14b(motors_periph[0].theta_rem_m); //sizeof(int32_t)*index + sizeof(int32_t) - 1
+			prestuff[fidx++] = wrap_2pi_14b(motors_periph[1].theta_rem_m);
+			prestuff[fidx++] = dp_ctl.motors_ctl[0].command_word;
+			prestuff[fidx++] = dp_ctl.motors_ctl[1].command_word;
+			prestuff[fidx++] = tick;
+
+			int len = PPP_stuff((uint8_t*)(&prestuff[0]), sizeof(prestuff), gl_ppp_stuff_buf, sizeof(gl_ppp_stuff_buf));
+			m_uart_tx_start(&m_huart2, gl_ppp_stuff_buf, len);
+		}
+
+
 
 	}
+
 
 	int32_t m0_offset = 0;
 	int32_t m1_offset = 0;	//TODO: obtain these experimentally, and also load them into the filesystem
@@ -197,7 +245,7 @@ int main(void)
 
 	while(1)
 	{
-		uint32_t tick = HAL_GetTick();
+		tick = HAL_GetTick();
 //		motors[0].command_word = 0;
 //		motors[1].command_word = 0;
 //		motors[0].command_word = sin_14b(wrap_2pi_14b(tick*10))*PI_14B/(1<<14);
@@ -223,32 +271,6 @@ int main(void)
 			read_motor_reply(&motors_periph[i], 1000);
 		}
 
-
-		/*Handle comms*/
-		if(uart_buf_received != 0)
-		{
-			uart_buf_received = 0;
-//			last_ppp_message_recieved_ts = tick;
-			//mode with 1 byte of padding, position, checksum
-			/*Blast out the motor data back to the person who asked us to move! client doesn't really need to parse it*/
-			uint8_t prestuff[3*sizeof(int32_t)+1*sizeof(int16_t)] = {0};	//motor1 pos, motor2 pos, fletcher's
-			/*
-			* Bytes 0,1,2,3 - motor1 position
-			* Bytes 4,5,6,7 - motor2 position
-			* Bytes 8,9,10,11 - time ms
-			 * Bytes 12,13: checksum16
-			 * */
-			int32_t * pbi32 = (int32_t*)(&prestuff[0]);
-			uint16_t * pbu16 = (uint16_t*)(&prestuff[0]);
-			pbi32[0] = motors_periph[0].theta_rem_m; //sizeof(int32_t)*index + sizeof(int32_t) - 1
-			pbi32[1] = motors_periph[1].theta_rem_m;
-			pbi32[2] = tick;
-			pbu16[6] = fletchers_checksum16(pbu16, 6);
-
-			int len = PPP_stuff(prestuff, sizeof(prestuff), firststuff, sizeof(firststuff));
-			len = PPP_stuff(firststuff, len, gl_ppp_stuff_buf, sizeof(gl_ppp_stuff_buf));	//double stuff the buffer! AAAH
-			m_uart_tx_start(&m_huart2, gl_ppp_stuff_buf, len);
-		}
 
 		/*LED blink*/
 		if(tick - led_ts > 100)
