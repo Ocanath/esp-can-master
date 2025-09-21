@@ -92,7 +92,9 @@ int main(void)
 	MX_FDCAN1_Init();
 	FDCAN_Config();
 	load_flash_params(&fs_alias);
+
 	read_motor_memory();
+	read_gun_memory();
 	write_pctl_settings();
 	activate_motion();	//clean motion activation
 	smooth_startup();	//startup subroutine - track to zero

@@ -9,6 +9,7 @@
 #define INC_DARTT_CONTROLLER_PARAMS_H_
 #include "dartt.h"
 #include "dartt_mctl_params.h"
+#include "dartt_gun_params.h"
 
 #define NUM_MOTORS 2
 
@@ -21,7 +22,8 @@ typedef struct fs_params_t
 typedef struct dartt_controller_params_t
 {
 	fs_params_t fds;
-	dartt_mctl_params_t motors_ctl[NUM_MOTORS];
+	dartt_mctl_params_t motors_ctl[NUM_MOTORS];	//control copy of the motor dartt layout
+	dartt_gun_params_t gun_ctl;	//control copy of the gun dartt layout
 	uint32_t update_fs;
 	uint32_t load_flags;
 	//add controller copies of dartt_mctl_params_t, which are the internal record of our intended mctl structs
@@ -36,5 +38,7 @@ extern buffer_t motor_ctl_command_alias[NUM_MOTORS];
 //motor memory and aliases
 extern dartt_mctl_params_t motors_periph[NUM_MOTORS];
 extern buffer_t fs_alias;
+
+extern dartt_gun_params_t gun_periph;
 
 #endif /* INC_DARTT_CONTROLLER_PARAMS_H_ */

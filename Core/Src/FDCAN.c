@@ -180,6 +180,31 @@ int write_fdcan_motor_int32_field(unsigned char * pfield, dartt_mctl_params_t * 
 }
 
 
+int write_fdcan_gun_int32_field(unsigned char * pfield, dartt_gun_params_t * gun)
+{
+	buffer_t field =
+	{
+			.buf = pfield,
+			.size = sizeof(int32_t),
+			.len = sizeof(int32_t)
+	};
+	buffer_t alias =
+	{
+			.buf = (unsigned char *)(gun),
+			.size = sizeof(dartt_gun_params_t),
+			.len = 0
+	};
+	if(create_fdcan_struct_write_frame(&field, &alias, &can_tx) == SERIAL_PROTOCOL_SUCCESS)
+	{
+		return send_fdcan_frame(dartt_get_complementary_address(gun->fds_mp.module_number), &can_tx);
+	}
+	else
+	{
+		return ERROR_INVALID_ARGUMENT;	//bad
+	}
+}
+
+
 
 
 int read_motor_reply(dartt_mctl_params_t * motor, uint32_t timeout)
@@ -240,6 +265,28 @@ int read_reply_blocking_fdcan_read(misc_read_message_t * read_msg, buffer_t * co
 		}
 	}
 	return FDCAN_READ_TIMEOUT;
+}
+
+int read_fdcan_gun_field(unsigned char * pfield, uint16_t num_bytes, dartt_gun_params_t * gun)
+{
+	int field_index = index_of_field(pfield, (unsigned char *)(gun), sizeof(dartt_gun_params_t));
+	if(field_index < 0)
+	{
+		return field_index;
+	}
+	misc_read_message_t read_msg = {};
+	//ignore address
+	read_msg.index = field_index;
+	read_msg.num_bytes = num_bytes;	//numbytes is HERE! you can deploy another helper that does the same thing
+	dartt_create_read_frame(&read_msg, TYPE_ADDR_CRC_MESSAGE, &can_tx);
+	send_fdcan_frame(dartt_get_complementary_address(gun->fds_mp.module_number), &can_tx);
+	buffer_t gun_alias =
+	{
+			.buf = (unsigned char *)(gun),
+			.size = sizeof(dartt_gun_params_t),
+			.len = 0
+	};
+	return read_reply_blocking_fdcan_read(&read_msg, &gun_alias, 50);
 }
 
 int read_fdcan_motor_field(unsigned char * pfield, uint16_t num_bytes, dartt_mctl_params_t * motor)

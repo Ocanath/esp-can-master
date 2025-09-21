@@ -46,11 +46,30 @@ void read_motor_memory(void)
 				.size = sizeof(dartt_mctl_params_t),
 				.len = 0
 		};
-		for(int b = 0; b < command_alias.size && b < periph_alias.size; b++)
-		{
-			command_alias.buf[b] = periph_alias.buf[b];
-		}
+		copy_buf_full(&periph_alias, &command_alias);
 	}
+}
+int gl_rc = 0;
+/*Helper to initialize both control and peripheral weapon structures*/
+void read_gun_memory(void)
+{
+	buffer_t periph_alias =
+	{
+			.buf = (unsigned char *)(&gun_periph),
+			.size = sizeof(dartt_gun_params_t),
+			.len = 0
+	};
+	for(int field = 0; field < sizeof(dartt_gun_params_t); field += sizeof(int32_t)*2)
+	{
+		gl_rc = read_fdcan_gun_field(&(periph_alias.buf[field]), sizeof(int32_t)*2, &gun_periph);	//read the whole memory in 8 byte chunks
+	}
+	buffer_t command_alias =
+	{
+			.buf = (unsigned char *)(&dp_ctl.gun_ctl),
+			.size = sizeof(dartt_gun_params_t),
+			.len = 0
+	};
+	copy_buf_full(&periph_alias, &command_alias);
 }
 
 /*Helper for modifying position control settings*/

@@ -26,6 +26,13 @@ dartt_controller_params_t dp_ctl =
 						}
 				}
 		},
+		.gun_ctl =
+		{
+				.fds_mp =
+				{
+						.module_number = 0
+				}
+		},
 		.update_fs = 0,
 		.load_flags = 0
 };
@@ -72,4 +79,7 @@ buffer_t fs_alias = {
 		.size = sizeof(fs_params_t),
 		.len = sizeof(fs_params_t)
 };
+
+dartt_gun_params_t gun_periph;
+
 

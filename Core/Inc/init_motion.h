@@ -9,6 +9,7 @@
 #define INC_INIT_MOTION_H_
 #include <stdint.h>
 
+void read_gun_memory(void);
 void read_motor_memory(void);
 void write_pctl_settings(void);
 void activate_motion(void);
