@@ -67,18 +67,9 @@ dartt_mctl_params_t motors_periph[NUM_MOTORS] =
 		}
 };	//init with correct id, so read_fdcan_motor_field addresses the correct motor
 
-/*
- * Helper function to load all the fds_mp params
- * Must go before CAN init for can ID to work properly
- * */
-void load_flash_params(buffer_t * fs)
-{
-	if(is_page_empty(fs->size/sizeof(uint32_t)) == 0)
-	{
-		m_read_flash((uint32_t*)(fs->buf) ,fs->size/sizeof(uint32_t));
-	}
-	else
-	{
-		m_write_flash((uint64_t*)fs->buf,fs->size/sizeof(uint64_t));
-	}
-}
+buffer_t fs_alias = {
+		.buf = (unsigned char *)(&dp_ctl.fds),
+		.size = sizeof(fs_params_t),
+		.len = sizeof(fs_params_t)
+};
+

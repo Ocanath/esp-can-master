@@ -8,6 +8,7 @@
 #ifndef INC_FDS_H_
 #define INC_FDS_H_
 #include "init.h"
+#include "dartt.h"
 
 /*block erases the last page of memory and writes whatever shit you like to it.
  *
@@ -30,5 +31,7 @@ uint8_t is_page_empty(uint32_t num_words_expected);
 /*compare two regions of memory*/
 uint8_t m_memcompare(uint32_t * p1, uint32_t * p2, uint32_t num_words);
 
+void load_flash_params(buffer_t * fs);
+void update_flash_params(buffer_t * fs);
 
 #endif /* INC_FDS_H_ */

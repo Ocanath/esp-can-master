@@ -5,6 +5,7 @@
  *      Author: Ocanath
  */
 #include "fds.h"
+
 #define LAST_PAGE 63
 
 
@@ -120,4 +121,34 @@ uint8_t m_memcompare(uint32_t * p1, uint32_t * p2, uint32_t num_words)
 		}
 	}
 	return 1;
+}
+
+/*
+ * Helper function to load all the fds_mp params
+ * Must go before CAN init for can ID to work properly
+ * */
+void load_flash_params(buffer_t * fs)
+{
+	if(fs == NULL)
+	{
+		return;
+	}
+	if(is_page_empty(fs->size/sizeof(uint32_t)) == 0)
+	{
+		m_read_flash((uint32_t*)(fs->buf) ,fs->size/sizeof(uint32_t));
+	}
+	else
+	{
+		m_write_flash((uint64_t*)fs->buf,fs->size/sizeof(uint64_t));
+	}
+}
+
+
+void update_flash_params(buffer_t * fs)
+{
+	if(fs == NULL)
+	{
+		return;
+	}
+	m_write_flash((uint64_t*)fs->buf,fs->size/sizeof(uint64_t));
 }

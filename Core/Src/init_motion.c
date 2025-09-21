@@ -17,6 +17,11 @@
 #include "FDCAN.h"
 #include "m_uart.h"
 
+
+static uint32_t uart_tx_ts = 0;
+static float qd[NUM_MOTORS] = {};
+static smooth_mem_t sm[NUM_MOTORS]  = {};
+
 void read_motor_memory(void)
 {
 	//initialize both command and peripheral buffers
@@ -97,9 +102,26 @@ void activate_motion(void)
 	}
 }
 
+/*
+ * Helper to stream rt plotter sdl data
+ * */
+void stream_plotter_data(uint32_t tick)
+{
+	if(tick - uart_tx_ts > 5 && m_huart2.bytes_to_send == 0)	//todo upgrade to cobs
+	{
+		uart_tx_ts = tick;
+		uint32_t prestuff[5] = {0};	//motor1 pos, motor2 pos, fletcher's
+		int fidx = 0;
+		prestuff[fidx++] = wrap_2pi_14b(motors_periph[0].theta_rem_m - dp_ctl.fds.motor_offsets[0]); //sizeof(int32_t)*index + sizeof(int32_t) - 1
+		prestuff[fidx++] = wrap_2pi_14b(motors_periph[1].theta_rem_m - dp_ctl.fds.motor_offsets[1]);
+		prestuff[fidx++] = wrap_2pi_14b(dp_ctl.motors_ctl[0].command_word - dp_ctl.fds.motor_offsets[0]);
+		prestuff[fidx++] = wrap_2pi_14b(dp_ctl.motors_ctl[1].command_word - dp_ctl.fds.motor_offsets[1]);
+		prestuff[fidx++] = tick;
 
-static float qd[NUM_MOTORS] = {};
-static smooth_mem_t sm[NUM_MOTORS]  = {};
+		int len = PPP_stuff((uint8_t*)(&prestuff[0]), sizeof(prestuff), gl_ppp_stuff_buf, sizeof(gl_ppp_stuff_buf));
+		m_uart_tx_start(&m_huart2, gl_ppp_stuff_buf, len);
+	}
+}
 
 
 /*Smoothly start wherever you are and move to zero,zero
@@ -110,7 +132,6 @@ void smooth_startup(void)
 	float period = 5.f;
 	uint32_t start_ts = HAL_GetTick();
 	uint32_t tick = HAL_GetTick();
-	uint32_t uart_tx_ts = 0;
 	for(int i = 0; i < NUM_MOTORS; i++)
 	{
 		init_smoothing_mem(&sm[i]);
@@ -123,28 +144,16 @@ void smooth_startup(void)
 
 		for(int i = 0; i < NUM_MOTORS; i++)
 		{
-			float q = ((float)motors_periph[i].theta_rem_m)/((float)(1<<14));
-			smooth_qd(0.f, period, q, &sm[i], &qd[i], tick);
+			float q = ((float)wrap_2pi_14b(motors_periph[i].theta_rem_m))/((float)(1<<14));
+			float qd_set = 0.f + (float)dp_ctl.fds.motor_offsets[i]/((float)(1<<14));	//ADD the offset (which is the value at the target zero pos) to qd_set so it gets passed to the motor properly
+			smooth_qd(qd_set, period, q, &sm[i], &qd[i], tick);
 
-			dp_ctl.motors_ctl[i].command_word = wrap_2pi_14b(qd[i]*((float)(1<<14)) - dp_ctl.fds.motor_offsets[i]);	//todo: verify sign is correct
+			dp_ctl.motors_ctl[i].command_word = wrap_2pi_14b((int32_t)(qd[i]*((float)(1<<14))));	//todo: verify sign is correct
 
 			send_fdcan_frame(dp_ctl.motors_ctl[i].fds_mp.module_number, &motor_ctl_command_alias[i]);
 			read_motor_reply(&motors_periph[i], 1000);
 		}
 
-		if(tick - uart_tx_ts > 5 && m_huart2.bytes_to_send == 0)	//todo upgrade to cobs
-		{
-			uart_tx_ts = tick;
-			uint32_t prestuff[5] = {0};	//motor1 pos, motor2 pos, fletcher's
-			int fidx = 0;
-			prestuff[fidx++] = wrap_2pi_14b(motors_periph[0].theta_rem_m - dp_ctl.fds.motor_offsets[0]); //sizeof(int32_t)*index + sizeof(int32_t) - 1
-			prestuff[fidx++] = wrap_2pi_14b(motors_periph[1].theta_rem_m - dp_ctl.fds.motor_offsets[1]);
-			prestuff[fidx++] = dp_ctl.motors_ctl[0].command_word;
-			prestuff[fidx++] = dp_ctl.motors_ctl[1].command_word;
-			prestuff[fidx++] = tick;
-
-			int len = PPP_stuff((uint8_t*)(&prestuff[0]), sizeof(prestuff), gl_ppp_stuff_buf, sizeof(gl_ppp_stuff_buf));
-			m_uart_tx_start(&m_huart2, gl_ppp_stuff_buf, len);
-		}
+		stream_plotter_data(tick);
 	}
 }

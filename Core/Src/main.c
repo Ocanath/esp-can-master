@@ -91,7 +91,7 @@ int main(void)
 	MX_USART2_UART_Init();
 	MX_FDCAN1_Init();
 	FDCAN_Config();
-
+	load_flash_params(&fs_alias);
 	read_motor_memory();
 	write_pctl_settings();
 	activate_motion();	//clean motion activation
@@ -109,15 +109,9 @@ int main(void)
 	*/
 	uint32_t upsample_ts = 0;
 	uint32_t led_ts = 0;
-	uint32_t uart_tx_ts = 0;
 	while(1)
 	{
 		uint32_t tick = HAL_GetTick();
-//		motors[0].command_word = 0;
-//		motors[1].command_word = 0;
-//		motors[0].command_word = sin_14b(wrap_2pi_14b(tick*10))*PI_14B/(1<<14);
-//		motors[1].command_word = cos_14b(wrap_2pi_14b(tick*10))*PI_14B/(1<<14);
-
 
 		if(tick - upsample_ts >= 1)
 		{
@@ -125,33 +119,27 @@ int main(void)
 			float m0filt = sos_f(&upsampling_filter[0], (float)(-gl_crq.commands[0]));
 			float m1filt = sos_f(&upsampling_filter[1], (float)(-gl_crq.commands[1]));
 
-			dp_ctl.motors_ctl[0].command_word = wrap_2pi_14b((int32_t)m0filt - dp_ctl.fds.motor_offsets[0]);	//todo: verify sign is correct
-			dp_ctl.motors_ctl[1].command_word = wrap_2pi_14b((int32_t)m1filt - dp_ctl.fds.motor_offsets[1]);
+			dp_ctl.motors_ctl[0].command_word = wrap_2pi_14b((int32_t)m0filt + dp_ctl.fds.motor_offsets[0]);	//todo: verify sign is correct
+			dp_ctl.motors_ctl[1].command_word = wrap_2pi_14b((int32_t)m1filt + dp_ctl.fds.motor_offsets[1]);
 		}
 
-
-
-
+		//write and read, per motor, over fdcan!
 		for(int i = 0; i < NUM_MOTORS; i++)
 		{
 			send_fdcan_frame(dp_ctl.motors_ctl[i].fds_mp.module_number, &motor_ctl_command_alias[i]);
 			read_motor_reply(&motors_periph[i], 1000);
 		}
 
+		stream_plotter_data(tick);
 
-		if(tick - uart_tx_ts > 5 && m_huart2.bytes_to_send == 0)	//todo upgrade to cobs
+		if(dp_ctl.load_flags != 0)
 		{
-			uart_tx_ts = tick;
-			uint32_t prestuff[5] = {0};	//motor1 pos, motor2 pos, fletcher's
-			int fidx = 0;
-			prestuff[fidx++] = wrap_2pi_14b(motors_periph[0].theta_rem_m - dp_ctl.fds.motor_offsets[0]); //sizeof(int32_t)*index + sizeof(int32_t) - 1
-			prestuff[fidx++] = wrap_2pi_14b(motors_periph[1].theta_rem_m - dp_ctl.fds.motor_offsets[1]);
-			prestuff[fidx++] = dp_ctl.motors_ctl[0].command_word;
-			prestuff[fidx++] = dp_ctl.motors_ctl[1].command_word;
-			prestuff[fidx++] = tick;
-
-			int len = PPP_stuff((uint8_t*)(&prestuff[0]), sizeof(prestuff), gl_ppp_stuff_buf, sizeof(gl_ppp_stuff_buf));
-			m_uart_tx_start(&m_huart2, gl_ppp_stuff_buf, len);
+			dp_ctl.load_flags = 0;
+			if(dp_ctl.update_fs != 0)
+			{
+				dp_ctl.update_fs = 0;
+				update_flash_params(&fs_alias);
+			}
 		}
 
 		/*LED blink*/
