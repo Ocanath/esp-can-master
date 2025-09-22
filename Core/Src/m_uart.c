@@ -6,6 +6,7 @@
  */
 #include "m_uart.h"
 #include "PPP.h"
+#include "cobs.h"
 
 /* Flag to clear ALL uart-associated interrupt requests, without clobbering reserved bits
  * (1 << 20) | (1 << 17) | (1 << 12) | (1 << 11) | (1 << 9) | (1 << 8) | (1 << 7) | (1 << 6) | (1 << 4) | (1 << 3) | (1 << 2) | (1 << 1) | (1 << 0)
@@ -46,6 +47,13 @@ __weak void m_uart2_rx_cplt_callback(uart_it_t * h)
 __weak void ppp_rx_cplt_callback(uart_it_t * h)
 {
 
+}
+
+void m_uart_start_interrupts(uart_it_t * h)
+{
+	h->Instance->CR1 |= (1 << 5) | (1 << 7) | (1 << 2) | (1 << 3);       //enable rxneie, txeie, RE and TE
+	h->Instance->CR1 &= ~(1 << 7);       //disable TX interrupt
+	h->Instance->CR1 |= (1 << 4);        //enable IDLE interrupt
 }
 
 /*
@@ -96,6 +104,14 @@ void m_uart_it_handler(uart_it_t * h, void (*callback)(uart_it_t * h) )
 
 	h->Instance->ICR |=  ICR_CLEAR_ALL;	//clear all remaining interrupt flags to avoid a storm
 }
+
+/*m_uart dma handler*/
+void m_uart_dma_handler(DMA_HandleTypeDef *hdma)
+{
+    hdma->DmaBaseAddress->IFCR = ((uint32_t)DMA_ISR_GIF1 << (hdma->ChannelIndex & 0x1FU));	//global per-channel interrupt clear
+}
+
+
 
 void m_uart_tx_start(uart_it_t * h, uint8_t * buf, int size)
 {

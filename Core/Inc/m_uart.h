@@ -7,7 +7,7 @@
 
 #ifndef M_UART_H_
 #define M_UART_H_
-#include "init.h"
+#include "main.h"
 #include "stm32g4xx_it.h"
 
 
@@ -39,6 +39,7 @@ typedef struct uart_it_t
 	uint8_t * tx_buf;	//pointer to txbuffer.
 }uart_it_t;
 
+
 extern uint8_t gl_ppp_stuff_buf[128];
 
 extern uart_it_t m_huart2;
@@ -48,5 +49,7 @@ void m_uart_it_handler(uart_it_t * h, void (*callback)(uart_it_t * h) );
 void m_uart_tx_start(uart_it_t * h, uint8_t * buf, int size);
 void m_uart2_rx_cplt_callback(uart_it_t * h);
 void ppp_rx_cplt_callback(uart_it_t * h);
+void m_uart_start_interrupts(uart_it_t * h);
+void m_uart_dma_handler(DMA_HandleTypeDef *hdma);
 
 #endif /* M_UART_H_ */
