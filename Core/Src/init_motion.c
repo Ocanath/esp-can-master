@@ -126,20 +126,22 @@ void activate_motion(void)
  * */
 void stream_plotter_data(uint32_t tick)
 {
-	if(tick - uart_tx_ts > 5 && m_huart2.bytes_to_send == 0)	//todo upgrade to cobs
-	{
-		uart_tx_ts = tick;
-		uint32_t prestuff[5] = {0};	//motor1 pos, motor2 pos, fletcher's
-		int fidx = 0;
-		prestuff[fidx++] = wrap_2pi_14b(motors_periph[0].theta_rem_m - dp_ctl.fds.motor_offsets[0]); //sizeof(int32_t)*index + sizeof(int32_t) - 1
-		prestuff[fidx++] = wrap_2pi_14b(motors_periph[1].theta_rem_m - dp_ctl.fds.motor_offsets[1]);
-		prestuff[fidx++] = wrap_2pi_14b(dp_ctl.motors_ctl[0].command_word - dp_ctl.fds.motor_offsets[0]);
-		prestuff[fidx++] = wrap_2pi_14b(dp_ctl.motors_ctl[1].command_word - dp_ctl.fds.motor_offsets[1]);
-		prestuff[fidx++] = tick;
-
-		int len = PPP_stuff((uint8_t*)(&prestuff[0]), sizeof(prestuff), gl_ppp_stuff_buf, sizeof(gl_ppp_stuff_buf));
-		m_uart_tx_start(&m_huart2, gl_ppp_stuff_buf, len);
-	}
+//	if(tick - uart_tx_ts > 5 && m_huart2.bytes_to_send == 0)	//todo upgrade to cobs
+//	{
+//		uart_tx_ts = tick;
+//		uint32_t prestuff[5] = {0};	//motor1 pos, motor2 pos, fletcher's
+//		int fidx = 0;
+//		prestuff[fidx++] = wrap_2pi_14b(motors_periph[0].theta_rem_m - dp_ctl.fds.motor_offsets[0]); //sizeof(int32_t)*index + sizeof(int32_t) - 1
+//		prestuff[fidx++] = wrap_2pi_14b(motors_periph[1].theta_rem_m - dp_ctl.fds.motor_offsets[1]);
+//		prestuff[fidx++] = wrap_2pi_14b(dp_ctl.motors_ctl[0].command_word - dp_ctl.fds.motor_offsets[0]);
+//		prestuff[fidx++] = wrap_2pi_14b(dp_ctl.motors_ctl[1].command_word - dp_ctl.fds.motor_offsets[1]);
+//		prestuff[fidx++] = tick;
+//
+////		int len = PPP_stuff((uint8_t*)(&prestuff[0]), sizeof(prestuff), gl_ppp_stuff_buf, sizeof(gl_ppp_stuff_buf));
+//		//cobs encode buffer
+//		m_uart_tx_start(&m_huart2, gl_ppp_stuff_buf, len);
+//	}
+	//this should be made obsolete by dartt plotting
 }
 
 

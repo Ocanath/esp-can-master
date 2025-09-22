@@ -212,7 +212,7 @@ void DMA1_Channel1_IRQHandler(void)
 //  HAL_DMA_IRQHandler(&hdma_usart2_rx);
   /* USER CODE BEGIN DMA1_Channel1_IRQn 1 */
 	m_uart_dma_handler(&hdma_usart2_rx);
-	/* USER CODE END DMA1_Channel1_IRQn 1 */
+  /* USER CODE END DMA1_Channel1_IRQn 1 */
 }
 
 /**
@@ -239,7 +239,7 @@ void USART2_IRQHandler(void)
   /* USER CODE END USART2_IRQn 0 */
 //  HAL_UART_IRQHandler(&huart2);
   /* USER CODE BEGIN USART2_IRQn 1 */
-	m_uart_it_handler(&m_huart2, &m_uart2_rx_cplt_callback);
+	m_uart_it_handler(&m_huart2);
   /* USER CODE END USART2_IRQn 1 */
 }
 

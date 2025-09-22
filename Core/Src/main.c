@@ -48,36 +48,8 @@ typedef struct uart_can_request_t
 	int32_t commands[NUM_MOTORS];
 }uart_can_request_t;
 uart_can_request_t gl_crq = {0};
-static uint8_t uart_buf_received = 0;
 
-void ppp_rx_cplt_callback(uart_it_t * h)
-{
-	if(h->ppp_unstuffed_size != 0 && (h->ppp_unstuffed_size % 2) == 0)	//nonzero and even is our basic callback entry filter
-	{
-		const uint8_t * pbu8 = (uint8_t*)(&m_huart2.ppp_unstuff_buf[0]);	//alias for this so it's easier to type
-		const uint16_t * pbu16 = (uint16_t*)(&m_huart2.ppp_unstuff_buf[0]);	//alias for this so it's easier to type
-		const int32_t * pbi32 = (int32_t * )(&m_huart2.ppp_unstuff_buf[2]);	//alias for section of payload corresponding to 32bit target values
-		int i16_size = h->ppp_unstuffed_size / sizeof(int16_t);	//must always be even, so this is fine
-		uint16_t checksum = fletchers_checksum16((uint16_t*)pbu16, i16_size - 1);	//checksum is always the last two bytes
-		if(checksum == pbu16[i16_size-1])		//compare calculated against received
-		{
-			/*
-			 * 0: mode
-			 * 1: pad
-			 * 2-3-4-5: w1
-			 * 6-7-8-9: w2
-			 * 10-11-12-13: w3
-			 * 14-15: chk
-			 */
-			gl_crq.mode = pbu8[0];
-			for(int i = 0; i < NUM_MOTORS && i*sizeof(int32_t) < sizeof(m_huart2.ppp_unstuff_buf); i++)
-			{
-				gl_crq.commands[i] = pbi32[i];
-			}
-			uart_buf_received = 1;
-		}
-	}
-}
+
 
 
 int main(void)
@@ -85,6 +57,7 @@ int main(void)
 	HAL_Init();
 	SystemClock_Config();
 	MX_GPIO_Init();
+	MX_DMA_Init();
 	MX_TIM1_Init();
 	MX_TIM2_Init();
 	MX_SPI1_Init();
@@ -92,6 +65,9 @@ int main(void)
 	MX_FDCAN1_Init();
 	FDCAN_Config();
 	load_flash_params(&fs_alias);
+
+
+	UART_Start_Receive_DMA(&huart2, (uint8_t*)(&m_huart2.rx_mem.buf), m_huart2.rx_mem.size);
 
 	read_motor_memory();
 	read_gun_memory();
@@ -108,7 +84,7 @@ int main(void)
 	/*todo: initialize the filters by operating passively/no motion and passing motors_periph.theta_rem_m
 	 * into the filter structure for a fixed amount of time (couple hundred ms?). Then, you set
 	 * motors_ctl.command_word = motors_periph.theta_rem_m...? - problem occurs if you wrap theta_rem_m...
-	*/
+	 */
 	uint32_t upsample_ts = 0;
 	uint32_t led_ts = 0;
 	while(1)
