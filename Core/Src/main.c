@@ -126,6 +126,14 @@ int main(void)
 		if(m_huart2.rx_decoded.length != 0)
 		{
 			//TODO: add dma disable and enable and re-test
+			//IMPORTANT NOTE: proper superloop handling means that after a decode call the DMA should be DISABLED, inside the interrupt handler,
+			//then re-enabled here, in the superloop.
+			//This is critically important to make sure the superloop doesnt check for a flagged message that is out of date due to
+			//being in the middle of a cobs decode call.
+			//it also logically makes sense to drop frames if you haven't gotten the chance to parse the last one.
+
+			//shit - actually maybe what makes more sense is to frame the decode in interrupt handler around dma disable, then re-enable when reading.
+			//then disable interrupts when catching the cobs message in superloop, and re-enable when done parsing dartt
 
 			//dummy parse. proper method is pipe to dartt
 			for(int i = 0; i < sizeof(gl_test_copybuf); i++)
