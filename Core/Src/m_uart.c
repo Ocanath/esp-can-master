@@ -70,7 +70,17 @@ void m_uart_start_interrupts(uart_it_t * h)
 //	h->Instance->CR1 |= (1 << 5) | (1 << 7) | (1 << 2) | (1 << 3);       //enable rxneie, txeie, RE and TE
 //	h->Instance->CR1 &= ~(1 << 7);       //disable TX interrupt
 //	h->Instance->CR1 |= (1 << 4);        //enable IDLE interrupt
+
 	h->Instance->CR1 |= USART_CR1_RE | USART_CR1_TE | USART_CR1_RXNEIE;
+	h->Instance->CR3 |= USART_CR3_DMAR;
+	h->dma->CCR &= ~DMA_CCR_EN;	//disable dma (will often already be disabled. Necessary for writing to CNTR, etc.
+	h->dma->CCR |= DMA_CCR_CIRC;
+	h->dma->CNDTR = h->rx_mem.size;
+	h->dma->CPAR = (uint32_t)(&h->Instance->RDR);
+	h->dma->CMAR = (uint32_t)(&h->rx_mem.buf[0]);
+	h->dma->CCR |= DMA_CCR_TCIE;
+	h->dma->CCR |= DMA_CCR_EN;
+
 }
 
 /*
