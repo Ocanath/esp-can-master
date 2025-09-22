@@ -25,10 +25,10 @@ typedef struct uart_it_t
 {
 
 	USART_TypeDef * Instance;
-	buffer_t rx_mem;	//raw data buffer
-	buffer_t rx_decoded;	//cobs unstuffed
-	buffer_t tx_mem;	//raw data buffer
-	buffer_t tx_decoded;	//cobs, unstuffed
+	cobs_buf_t rx_mem;	//raw data buffer
+	cobs_buf_t rx_decoded;	//cobs unstuffed
+	cobs_buf_t tx_mem;	//raw data buffer
+	cobs_buf_t tx_decoded;	//cobs, unstuffed
 }uart_it_t;
 
 

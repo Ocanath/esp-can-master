@@ -67,7 +67,7 @@ int main(void)
 	load_flash_params(&fs_alias);
 
 
-	UART_Start_Receive_DMA(&huart2, (uint8_t*)(&m_huart2.rx_mem.buf), m_huart2.rx_mem.size);
+	UART_Start_Receive_DMA(&huart2, (uint8_t*)(&m_huart2.rx_mem.buf[0]), m_huart2.rx_mem.size);
 
 	read_motor_memory();
 	read_gun_memory();

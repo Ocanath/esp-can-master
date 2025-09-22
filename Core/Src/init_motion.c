@@ -18,7 +18,7 @@
 #include "m_uart.h"
 
 
-static uint32_t uart_tx_ts = 0;
+//static uint32_t uart_tx_ts = 0;
 static float qd[NUM_MOTORS] = {};
 static smooth_mem_t sm[NUM_MOTORS]  = {};
 

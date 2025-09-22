@@ -21,37 +21,37 @@
 #define TXEIE		(1 << 7)
 
 
-static uint8_t rx_mem[UART_IT_BUF_SIZE] = {};
-static uint8_t rx_decoded[UART_IT_BUF_SIZE] =  {};
-static uint8_t tx_mem[UART_IT_BUF_SIZE] = {};
-static uint8_t tx_decoded[UART_IT_BUF_SIZE] =  {};
+static uint8_t gl_rx_mem[UART_IT_BUF_SIZE] = {};
+static uint8_t gl_rx_decoded[UART_IT_BUF_SIZE] =  {};
+static uint8_t gl_tx_mem[UART_IT_BUF_SIZE] = {};
+static uint8_t gl_tx_decoded[UART_IT_BUF_SIZE] =  {};
 /*Initialize a baremetal uart handler structure for UART 1*/
 uart_it_t m_huart2 =
 {
 		.Instance = USART2,
 		.rx_mem =
 		{
-				.buf = rx_mem,
-				.size = sizeof(rx_mem),
-				.len = 0
+				.buf = gl_rx_mem,
+				.size = sizeof(gl_rx_mem),
+				.length = 0
 		},
 		.rx_decoded =
 		{
-				.buf = rx_decoded,
-				.size = sizeof(rx_decoded),
-				.len = 0
+				.buf = gl_rx_decoded,
+				.size = sizeof(gl_rx_decoded),
+				.length = 0
 		},
 		.tx_mem =
 		{
-				.buf = tx_mem,
-				.size = sizeof(tx_mem),
-				.len = 0
+				.buf = gl_tx_mem,
+				.size = sizeof(gl_tx_mem),
+				.length = 0
 		},
 		.tx_decoded =
 		{
-				.buf = tx_decoded,
-				.size = sizeof(tx_decoded),
-				.len = 0
+				.buf = gl_tx_decoded,
+				.size = sizeof(gl_tx_decoded),
+				.length = 0
 		}
 };
 
@@ -66,9 +66,10 @@ __weak void m_uart2_rx_cplt_callback(uart_it_t * h)
 
 void m_uart_start_interrupts(uart_it_t * h)
 {
-	h->Instance->CR1 |= (1 << 5) | (1 << 7) | (1 << 2) | (1 << 3);       //enable rxneie, txeie, RE and TE
-	h->Instance->CR1 &= ~(1 << 7);       //disable TX interrupt
-	h->Instance->CR1 |= (1 << 4);        //enable IDLE interrupt
+//	h->Instance->CR1 |= (1 << 5) | (1 << 7) | (1 << 2) | (1 << 3);       //enable rxneie, txeie, RE and TE
+//	h->Instance->CR1 &= ~(1 << 7);       //disable TX interrupt
+//	h->Instance->CR1 |= (1 << 4);        //enable IDLE interrupt
+	h->Instance->CR1 |= USART_CR1_RE | USART_CR1_TE | USART_CR1_RXNEIE;
 }
 
 /*
@@ -82,16 +83,16 @@ void m_uart_start_interrupts(uart_it_t * h)
 void m_uart_it_handler(uart_it_t * h)
 {
 
-//	uint32_t isrflags   = h->Instance->ISR;	//read interrupt status register
-//
-//	uint16_t rdr = (uint16_t)h->Instance->RDR;	//read RDR, thus clearing the associated interrupt flag
-//
-//	int rxne = (isrflags & RXNE_BIT) != 0;		//check if there's bytes in the queue
-//
-//	if(rxne != 0)	//if there's stuff in the buffer
-//	{
-//		uint8_t nb = rdr & 0x00FF;
-//	}
+	uint32_t isrflags   = h->Instance->ISR;	//read interrupt status register
+
+	uint16_t rdr = (uint16_t)h->Instance->RDR;	//read RDR, thus clearing the associated interrupt flag
+
+	int rxne = (isrflags & RXNE_BIT) != 0;		//check if there's bytes in the queue
+
+	if(rxne != 0 && rdr == 0)	//if there's stuff in the buffer and that the stuff in the buffer has value zero
+	{
+		cobs_decode_double_buffer(&h->rx_mem, &h->rx_decoded);
+	}
 
 	h->Instance->ICR |=  ICR_CLEAR_ALL;	//clear all remaining interrupt flags to avoid a storm
 }
