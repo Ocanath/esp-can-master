@@ -68,6 +68,13 @@ int main(void)
 
 
 	UART_Start_Receive_DMA(&huart2, (uint8_t*)(&m_huart2.rx_mem.buf[0]), m_huart2.rx_mem.size);
+//	m_huart2.dma->CCR &= ~DMA_CCR_EN;	//disable dma (will often already be disabled. Necessary for writing to CNTR, etc.
+//	m_huart2.dma->CCR |= DMA_CCR_CIRC;
+//	m_huart2.dma->CNDTR = m_huart2.rx_mem.size;
+//	m_huart2.dma->CPAR = (uint32_t)(&m_huart2.Instance->RDR);
+//	m_huart2.dma->CMAR = (uint32_t)(&m_huart2.rx_mem.buf[0]);
+//	m_huart2.dma->CCR |= DMA_CCR_TCIE;
+//	m_huart2.dma->CCR |= DMA_CCR_EN;
 
 	read_motor_memory();
 	read_gun_memory();

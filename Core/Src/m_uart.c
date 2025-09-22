@@ -29,6 +29,7 @@ static uint8_t gl_tx_decoded[UART_IT_BUF_SIZE] =  {};
 uart_it_t m_huart2 =
 {
 		.Instance = USART2,
+		.dma = DMA1_Channel1,
 		.rx_mem =
 		{
 				.buf = gl_rx_mem,
@@ -91,6 +92,10 @@ void m_uart_it_handler(uart_it_t * h)
 
 	if(rxne != 0 && rdr == 0)	//if there's stuff in the buffer and that the stuff in the buffer has value zero
 	{
+		//reset the dma pointer back to zero. we received a COBS frame, so everything preceeding is irrelevant.
+		h->dma->CCR &= ~DMA_CCR_EN;
+		h->dma->CNDTR = m_huart2.rx_mem.size;	//may need to frame disable/enable
+		h->dma->CCR |= DMA_CCR_EN;
 		cobs_decode_double_buffer(&h->rx_mem, &h->rx_decoded);
 	}
 

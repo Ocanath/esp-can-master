@@ -14,6 +14,16 @@ There may be a method to efficiently check new DMA data for a termination charac
 
 A DMA interrupt may be the way to go. More reading required.
 
+DMA RDR should be equal to 0x40004424.
+
+Circ resets to zero - it's just i = (i + 1) % size.
+
+- That means that SIZE - CNDTR = (read len) until full
+- then after filling, len = 64
+- After filling, (index + 1) % size is the index of the beginning of the array
+- I think it is easier to reset CNDTR in the interrupt handler on reception char. Disable DMA, set CNDTR to size,
+re-enable DMA. Only a few writes, and once per frame is pretty decent to eliminate circular buffer logic. In this mode you would keep it in 'Normal' mode, so CNDTR can be handled properly. - note: this works. you def want to disable the half transfer complete interrupt though. - LOL you're implementing circular in an interrupt handler, it's the same thing dumbass. just take len = SIZE - CNDTR - same thing. you delete old data but that's okay.
+
 ## Implementation Strategy
 
 ### High Level Overview
