@@ -50,7 +50,7 @@ typedef struct uart_can_request_t
 uart_can_request_t gl_crq = {0};
 
 
-
+unsigned char gl_test_copybuf[5] = {};
 
 int main(void)
 {
@@ -121,6 +121,18 @@ int main(void)
 		{
 			write_fdcan_gun_int32_field((unsigned char *)(&dp_ctl.gun_ctl.shot_request), &(dp_ctl.gun_ctl));
 			dp_ctl.gun_ctl.shot_request = 0;	//flag as handled for non-repeat shots
+		}
+
+		if(m_huart2.rx_decoded.length != 0)
+		{
+			//TODO: add dma disable and enable and re-test
+
+			//dummy parse. proper method is pipe to dartt
+			for(int i = 0; i < sizeof(gl_test_copybuf); i++)
+			{
+				gl_test_copybuf[i] = m_huart2.rx_decoded.buf[i];
+			}
+			m_huart2.rx_decoded.length = 0;
 		}
 
 		/*LED blink*/
