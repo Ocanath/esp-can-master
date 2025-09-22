@@ -93,18 +93,13 @@ void m_uart_start_interrupts(uart_it_t * h)
  * */
 void m_uart_it_handler(uart_it_t * h)
 {
-
-	uint32_t isrflags   = h->Instance->ISR;	//read interrupt status register
-
 	uint16_t rdr = (uint16_t)h->Instance->RDR;	//read RDR, thus clearing the associated interrupt flag
-
-	int rxne = (isrflags & RXNE_BIT) != 0;		//check if there's bytes in the queue
-
-	if(rxne != 0 && rdr == 0)	//if there's stuff in the buffer and that the stuff in the buffer has value zero
+	if(rdr == 0)	//rxne will always be zero, because the DMA clears the FIFO. That means we don't care about the state of that bit - we only need to check RDR, or alternatively the most recent value in DMA memory
 	{
+		h->rx_mem.length = (h->rx_mem.size - (size_t)h->dma->CNDTR);	//load length based on dma register status. It counts down so we just reverse it from the known transfer size
 		//reset the dma pointer back to zero. we received a COBS frame, so everything preceeding is irrelevant.
 		h->dma->CCR &= ~DMA_CCR_EN;
-		h->dma->CNDTR = m_huart2.rx_mem.size;	//may need to frame disable/enable
+		h->dma->CNDTR = h->rx_mem.size;	//may need to frame disable/enable
 		h->dma->CCR |= DMA_CCR_EN;
 		cobs_decode_double_buffer(&h->rx_mem, &h->rx_decoded);
 	}
