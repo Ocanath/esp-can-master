@@ -41,7 +41,7 @@ buffer_t dp_ctl_alias =
 {
 		.buf = (unsigned char *)(&dp_ctl),
 		.size = sizeof(dartt_controller_params_t),
-		.len = sizeof(dartt_controller_params_t)
+		.len = 0
 };
 
 buffer_t motor_ctl_command_alias[NUM_MOTORS] =
@@ -77,7 +77,7 @@ dartt_mctl_params_t motors_periph[NUM_MOTORS] =
 buffer_t fs_alias = {
 		.buf = (unsigned char *)(&dp_ctl.fds),
 		.size = sizeof(fs_params_t),
-		.len = sizeof(fs_params_t)
+		.len = 0
 };
 
 dartt_gun_params_t gun_periph;

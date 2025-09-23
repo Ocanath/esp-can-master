@@ -12,6 +12,7 @@
 #include "dartt.h"
 #include "Smoothing.h"
 #include "init_motion.h"
+#include "dartt.h"
 
 
 /**
@@ -135,11 +136,24 @@ int main(void)
 			//shit - actually maybe what makes more sense is to frame the decode in interrupt handler around dma disable, then re-enable when reading.
 			//then disable interrupts when catching the cobs message in superloop, and re-enable when done parsing dartt
 
-			//dummy parse. proper method is pipe to dartt
-			for(int i = 0; i < sizeof(gl_test_copybuf); i++)
+			//ok yes. disable rx interrupt upon decode, then re-enable it here.
+			//that means the decode copy is untouchable while we're processing a new encoded copy
+			//we do run the risk of dropping a frame if the delimiter arrives in the dma buffer before we re-enable interrupts, but that's ok because if we disabled dma
+			//too, it would filter the frame for missing data. We have a better chance of catching it from the delimiter if that arrives in time
+
+
+			//we could also do dartt in the handler. That would simplify this greatly, at the expense of compute in an interrupt handler
+			if(m_huart2.rx_decoded.buf[0] == dp_ctl.fds.dartt_address)
 			{
-				gl_test_copybuf[i] = m_huart2.rx_decoded.buf[i];
+				dartt_frame_to_payload(&m_huart2.rx_decode_alias, TYPE_SERIAL_MESSAGE, PAYLOAD_ALIAS, &m_huart2.rx_pld_msg);
+				dartt_parse_general_message(&m_huart2.rx_pld_msg, TYPE_SERIAL_MESSAGE, &dp_ctl_alias, &m_huart2.tx_buf_alias);
+				if(m_huart2.tx_buf_alias.len != 0)
+				{
+					cobs_encode_single_buffer(&m_huart2.tx_mem);
+					m_uart_dma_transmit(&m_huart2.tx_buf_alias);
+				}
 			}
+
 			m_huart2.rx_decoded.length = 0;
 		}
 

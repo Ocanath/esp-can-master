@@ -25,10 +25,16 @@ typedef struct uart_it_t
 {
 	USART_TypeDef * Instance;
 	DMA_Channel_TypeDef * dma;
+
 	cobs_buf_t rx_mem;	//raw data buffer
 	cobs_buf_t rx_decoded;	//cobs unstuffed
+
+	buffer_t rx_decode_alias;
+	payload_layer_msg_t rx_pld_msg;
+
+
 	cobs_buf_t tx_mem;	//raw data buffer
-	cobs_buf_t tx_decoded;	//cobs, unstuffed
+	buffer_t tx_buf_alias;
 }uart_it_t;
 
 
@@ -41,6 +47,8 @@ void m_uart_tx_start(uart_it_t * h, uint8_t * buf, int size);
 void m_uart2_rx_cplt_callback(uart_it_t * h);
 void m_uart_start_interrupts(uart_it_t * h);
 void m_uart_dma_handler(DMA_HandleTypeDef *hdma);
-
+void m_uart_enable_rx_interrupt(uart_it_t * h);
+void m_uart_disable_rx_interrupt(uart_it_t * h);
+void m_uart_dma_transmit(buffer_t * tx_buf);
 
 #endif /* M_UART_H_ */

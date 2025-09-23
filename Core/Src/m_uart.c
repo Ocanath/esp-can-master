@@ -24,7 +24,7 @@
 static uint8_t gl_rx_mem[UART_IT_BUF_SIZE] = {};
 static uint8_t gl_rx_decoded[UART_IT_BUF_SIZE] =  {};
 static uint8_t gl_tx_mem[UART_IT_BUF_SIZE] = {};
-static uint8_t gl_tx_decoded[UART_IT_BUF_SIZE] =  {};
+
 /*Initialize a baremetal uart handler structure for UART 1*/
 uart_it_t m_huart2 =
 {
@@ -34,13 +34,21 @@ uart_it_t m_huart2 =
 		{
 				.buf = gl_rx_mem,
 				.size = sizeof(gl_rx_mem),
-				.length = 0
+				.length = 0,
+				.encoded_state = COBS_ENCODED
 		},
 		.rx_decoded =
 		{
 				.buf = gl_rx_decoded,
 				.size = sizeof(gl_rx_decoded),
-				.length = 0
+				.length = 0,
+				.encoded_state = COBS_DECODED
+		},
+		.rx_decode_alias =
+		{
+				.buf = gl_rx_decoded,
+				.size = sizeof(gl_rx_decoded),
+				.len = 0
 		},
 		.tx_mem =
 		{
@@ -48,12 +56,13 @@ uart_it_t m_huart2 =
 				.size = sizeof(gl_tx_mem),
 				.length = 0
 		},
-		.tx_decoded =
+		.tx_buf_alias =
 		{
-				.buf = gl_tx_decoded,
-				.size = sizeof(gl_tx_decoded),
-				.length = 0
-		}
+				.buf = gl_tx_mem,
+				.size = sizeof(gl_tx_mem),
+				.len = 0
+		},
+		.rx_pld_msg = {}
 };
 
 /**
@@ -64,7 +73,7 @@ __weak void m_uart2_rx_cplt_callback(uart_it_t * h)
   UNUSED(h);
 }
 
-
+/**/
 void m_uart_start_interrupts(uart_it_t * h)
 {
 //	h->Instance->CR1 |= (1 << 5) | (1 << 7) | (1 << 2) | (1 << 3);       //enable rxneie, txeie, RE and TE
@@ -81,6 +90,19 @@ void m_uart_start_interrupts(uart_it_t * h)
 	h->dma->CCR |= DMA_CCR_TCIE;
 	h->dma->CCR |= DMA_CCR_EN;
 
+}
+
+
+/**/
+void m_uart_disable_rx_interrupt(uart_it_t * h)
+{
+	h->Instance->CR1 &= ~USART_CR1_RXNEIE;
+}
+
+/**/
+void m_uart_enable_rx_interrupt(uart_it_t * h)
+{
+	h->Instance->CR1 |= USART_CR1_RXNEIE;
 }
 
 /*
@@ -102,11 +124,16 @@ void m_uart_it_handler(uart_it_t * h)
 		h->dma->CNDTR = h->rx_mem.size;	//may need to frame disable/enable
 		h->dma->CCR |= DMA_CCR_EN;
 		cobs_decode_double_buffer(&h->rx_mem, &h->rx_decoded);
+		h->rx_decode_alias.len = h->rx_decoded.length; //dumb, but we have to copy the length because we have a dartt buffer and cobs buffer. Should really do something to unify these..
 	}
 
 	h->Instance->ICR |=  ICR_CLEAR_ALL;	//clear all remaining interrupt flags to avoid a storm
 }
 
+void m_uart_dma_transmit(buffer_t * tx_buf)
+{
+	return;//todo implement this function
+}
 
 /*m_uart dma handler*/
 void m_uart_dma_handler(DMA_HandleTypeDef *hdma)

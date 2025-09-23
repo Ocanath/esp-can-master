@@ -17,6 +17,8 @@
 typedef struct fs_params_t
 {
 	int32_t motor_offsets[NUM_MOTORS];			//load these as the value of thetat_rem_m at the desired zero position.
+	int32_t dartt_address;	//motor address/base address for dartt modification of the controller params_t
+	int32_t unused_pad;	//pad the structure because this architecture relies on 8 byte words for the filesystem, so it has to  be a multiple of 8
 }fs_params_t;
 
 typedef struct dartt_controller_params_t
