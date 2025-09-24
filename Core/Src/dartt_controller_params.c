@@ -11,6 +11,8 @@
 
 dartt_controller_params_t dp_ctl =
 {
+		.m1_qd = 0,
+		.m2_qd = 0,
 		.fds = {},	//initialized by load, so leave empty
 		.motors_ctl = {
 				{

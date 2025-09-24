@@ -23,6 +23,8 @@ typedef struct fs_params_t
 
 typedef struct dartt_controller_params_t
 {
+	int32_t m1_qd;
+	int32_t m2_qd;
 	fs_params_t fds;
 	dartt_mctl_params_t motors_ctl[NUM_MOTORS];	//control copy of the motor dartt layout
 	dartt_gun_params_t gun_ctl;	//control copy of the gun dartt layout

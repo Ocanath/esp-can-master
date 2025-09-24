@@ -43,16 +43,9 @@
 
 //dartt_weapon_params_t weapon = {};	//todo: implement this. module number should be hardcoded to 3
 
-typedef struct uart_can_request_t
-{
-	uint8_t mode;
-	int32_t commands[NUM_MOTORS];
-}uart_can_request_t;
-uart_can_request_t gl_crq = {0};
 
-
-unsigned char gl_test_copybuf[5] = {};
-
+//todo - dartt reads
+//todo - dartt sync fcn that takes
 int main(void)
 {
 	HAL_Init();
@@ -92,8 +85,8 @@ int main(void)
 		if(tick - upsample_ts >= 1)
 		{
 			upsample_ts = tick;
-			float m0filt = sos_f(&upsampling_filter[0], (float)(-gl_crq.commands[0]));
-			float m1filt = sos_f(&upsampling_filter[1], (float)(-gl_crq.commands[1]));
+			float m0filt = sos_f(&upsampling_filter[0], (float)(-dp_ctl.m1_qd));
+			float m1filt = sos_f(&upsampling_filter[1], (float)(-dp_ctl.m2_qd));
 
 			dp_ctl.motors_ctl[0].command_word = wrap_2pi_14b((int32_t)m0filt + dp_ctl.fds.motor_offsets[0]);	//todo: verify sign is correct
 			dp_ctl.motors_ctl[1].command_word = wrap_2pi_14b((int32_t)m1filt + dp_ctl.fds.motor_offsets[1]);
