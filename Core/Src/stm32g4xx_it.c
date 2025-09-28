@@ -226,7 +226,7 @@ void DMA1_Channel2_IRQHandler(void)
   /* USER CODE END DMA1_Channel2_IRQn 0 */
 //  HAL_DMA_IRQHandler(&hdma_usart2_tx);
   /* USER CODE BEGIN DMA1_Channel2_IRQn 1 */
-	m_uart_rxdma_handler(&hdma_usart2_tx);
+	m_uart_txdma_handler(&hdma_usart2_tx);
   /* USER CODE END DMA1_Channel2_IRQn 1 */
 }
 

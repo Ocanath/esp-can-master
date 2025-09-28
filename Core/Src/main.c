@@ -60,6 +60,8 @@ int main(void)
 	FDCAN_Config();
 	load_flash_params(&fs_alias);
 
+
+
 	read_motor_memory();
 	read_gun_memory();
 	write_pctl_settings();
@@ -142,6 +144,7 @@ int main(void)
 				dartt_parse_general_message(&m_huart2.rx_pld_msg, TYPE_SERIAL_MESSAGE, &dp_ctl_alias, &m_huart2.tx_buf_alias);
 				if(m_huart2.tx_buf_alias.len != 0)
 				{
+					m_huart2.tx_mem.length = m_huart2.tx_buf_alias.len;
 					cobs_encode_single_buffer(&m_huart2.tx_mem);
 					m_uart_dma_transmit(&m_huart2);
 				}

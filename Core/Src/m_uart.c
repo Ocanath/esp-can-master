@@ -55,7 +55,8 @@ uart_it_t m_huart2 =
 		{
 				.buf = gl_tx_mem,
 				.size = sizeof(gl_tx_mem),
-				.length = 0
+				.length = 0,
+				.encoded_state = COBS_ENCODED
 		},
 		.tx_buf_alias =
 		{
@@ -81,9 +82,10 @@ void m_uart_start_interrupts(uart_it_t * h)
 //	h->Instance->CR1 &= ~(1 << 7);       //disable TX interrupt
 //	h->Instance->CR1 |= (1 << 4);        //enable IDLE interrupt
 
-	//setup interrupts
+	//setup interrupts and UART config
 	h->Instance->CR1 |= USART_CR1_RE | USART_CR1_TE | USART_CR1_RXNEIE;
 	h->Instance->CR3 |= USART_CR3_DMAR;
+	h->Instance->CR3 |= USART_CR3_DMAT;
 
 	//setup rxdma
 	h->rxdma->CCR &= ~DMA_CCR_EN;	//disable dma (will often already be disabled. Necessary for writing to CNTR, etc.
