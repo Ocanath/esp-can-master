@@ -135,12 +135,17 @@ void m_uart_dma_transmit(buffer_t * tx_buf)
 	return;//todo implement this function
 }
 
-/*m_uart dma handler*/
-void m_uart_dma_handler(DMA_HandleTypeDef *hdma)
+/*m_uart receive dma handler*/
+void m_uart_rxdma_handler(DMA_HandleTypeDef *hdma)
 {
     hdma->DmaBaseAddress->IFCR = ((uint32_t)DMA_ISR_GIF1 << (hdma->ChannelIndex & 0x1FU));	//global per-channel interrupt clear
 }
 
+/*m_uart transmit dma handler*/
+void m_uart_txdma_handler(DMA_HandleTypeDef *hdma)
+{
+	hdma->DmaBaseAddress->IFCR = ((uint32_t)DMA_ISR_GIF1 << (hdma->ChannelIndex & 0x1FU));	//global per-channel interrupt clear
+}
 
 
 void m_uart_tx_start(uart_it_t * h, uint8_t * buf, int size)
