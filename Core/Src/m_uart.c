@@ -29,7 +29,7 @@ static uint8_t gl_tx_mem[UART_IT_BUF_SIZE] = {};
 uart_it_t m_huart2 =
 {
 		.Instance = USART2,
-		.dma = DMA1_Channel1,
+		.rxdma = DMA1_Channel1,
 		.rx_mem =
 		{
 				.buf = gl_rx_mem,
@@ -82,13 +82,13 @@ void m_uart_start_interrupts(uart_it_t * h)
 
 	h->Instance->CR1 |= USART_CR1_RE | USART_CR1_TE | USART_CR1_RXNEIE;
 	h->Instance->CR3 |= USART_CR3_DMAR;
-	h->dma->CCR &= ~DMA_CCR_EN;	//disable dma (will often already be disabled. Necessary for writing to CNTR, etc.
-	h->dma->CCR |= DMA_CCR_CIRC;
-	h->dma->CNDTR = h->rx_mem.size;
-	h->dma->CPAR = (uint32_t)(&h->Instance->RDR);
-	h->dma->CMAR = (uint32_t)(&h->rx_mem.buf[0]);
-	h->dma->CCR |= DMA_CCR_TCIE;
-	h->dma->CCR |= DMA_CCR_EN;
+	h->rxdma->CCR &= ~DMA_CCR_EN;	//disable dma (will often already be disabled. Necessary for writing to CNTR, etc.
+	h->rxdma->CCR |= DMA_CCR_CIRC;
+	h->rxdma->CNDTR = h->rx_mem.size;
+	h->rxdma->CPAR = (uint32_t)(&h->Instance->RDR);
+	h->rxdma->CMAR = (uint32_t)(&h->rx_mem.buf[0]);
+	h->rxdma->CCR |= DMA_CCR_TCIE;
+	h->rxdma->CCR |= DMA_CCR_EN;
 
 }
 
@@ -118,11 +118,11 @@ void m_uart_it_handler(uart_it_t * h)
 	uint16_t rdr = (uint16_t)h->Instance->RDR;	//read RDR, thus clearing the associated interrupt flag
 	if(rdr == 0)	//rxne will always be zero, because the DMA clears the FIFO. That means we don't care about the state of that bit - we only need to check RDR, or alternatively the most recent value in DMA memory
 	{
-		h->rx_mem.length = (h->rx_mem.size - (size_t)h->dma->CNDTR);	//load length based on dma register status. It counts down so we just reverse it from the known transfer size
+		h->rx_mem.length = (h->rx_mem.size - (size_t)h->rxdma->CNDTR);	//load length based on dma register status. It counts down so we just reverse it from the known transfer size
 		//reset the dma pointer back to zero. we received a COBS frame, so everything preceeding is irrelevant.
-		h->dma->CCR &= ~DMA_CCR_EN;
-		h->dma->CNDTR = h->rx_mem.size;	//may need to frame disable/enable
-		h->dma->CCR |= DMA_CCR_EN;
+		h->rxdma->CCR &= ~DMA_CCR_EN;
+		h->rxdma->CNDTR = h->rx_mem.size;	//may need to frame disable/enable
+		h->rxdma->CCR |= DMA_CCR_EN;
 		cobs_decode_double_buffer(&h->rx_mem, &h->rx_decoded);
 		h->rx_decode_alias.len = h->rx_decoded.length; //dumb, but we have to copy the length because we have a dartt buffer and cobs buffer. Should really do something to unify these..
 	}

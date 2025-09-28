@@ -24,7 +24,8 @@
 typedef struct uart_it_t
 {
 	USART_TypeDef * Instance;
-	DMA_Channel_TypeDef * dma;
+	DMA_Channel_TypeDef * rxdma;
+	DMA_Channel_TypeDef * txdma;
 
 	cobs_buf_t rx_mem;	//raw data buffer
 	cobs_buf_t rx_decoded;	//cobs unstuffed

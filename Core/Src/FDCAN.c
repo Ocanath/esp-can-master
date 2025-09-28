@@ -118,7 +118,7 @@ int send_fdcan_frame(uint16_t id, buffer_t * buffer)
 	HAL_FDCAN_AddMessageToTxFifoQ(&hfdcan1, &can_tx_header, buffer->buf);
 	while((hfdcan1.Instance->TXFQS & FDCAN_TXFQS_TFQF) != 0U);
 
-	return SERIAL_PROTOCOL_SUCCESS;
+	return DARTT_PROTOCOL_SUCCESS;
 }
 
 
@@ -169,7 +169,7 @@ int write_fdcan_motor_int32_field(unsigned char * pfield, dartt_mctl_params_t * 
 			.size = sizeof(dartt_mctl_params_t),
 			.len = 0
 	};
-	if(create_fdcan_struct_write_frame(&field, &alias, &can_tx) == SERIAL_PROTOCOL_SUCCESS)
+	if(create_fdcan_struct_write_frame(&field, &alias, &can_tx) == DARTT_PROTOCOL_SUCCESS)
 	{
 		return send_fdcan_frame(dartt_get_complementary_address(motor->fds_mp.module_number), &can_tx);
 	}
@@ -194,7 +194,7 @@ int write_fdcan_gun_int32_field(unsigned char * pfield, dartt_gun_params_t * gun
 			.size = sizeof(dartt_gun_params_t),
 			.len = 0
 	};
-	if(create_fdcan_struct_write_frame(&field, &alias, &can_tx) == SERIAL_PROTOCOL_SUCCESS)
+	if(create_fdcan_struct_write_frame(&field, &alias, &can_tx) == DARTT_PROTOCOL_SUCCESS)
 	{
 		return send_fdcan_frame(dartt_get_complementary_address(gun->fds_mp.module_number), &can_tx);
 	}

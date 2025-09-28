@@ -34,6 +34,7 @@ extern "C" {
 #define NUM_BYTES_INDEX sizeof(uint16_t)
 #define NUM_BYTES_NUMWORDS_READREQUEST	sizeof(uint16_t)	//for a read struct request, we send a fixed 16bit integer argument in the payload section for the readsize request
 #define NUM_BYTES_CHECKSUM sizeof(uint16_t)
+#define NUM_BYTES_NON_PAYLOAD (NUM_BYTES_ADDRESS + NUM_BYTES_INDEX + NUM_BYTES_CHECKSUM)
 #define MINIMUM_MESSAGE_LENGTH NUM_BYTES_NON_PAYLOAD
 
 //This is a fixed address that always corresponds
@@ -42,7 +43,7 @@ extern "C" {
 
 #define READ_WRITE_BITMASK	0x8000	//msg is the read write bit. 1 for read, 0 for write.
 
-enum {ERROR_MEMORY_OVERRUN = -5, ERROR_INVALID_ARGUMENT = -4, ERROR_CHECKSUM_MISMATCH = -3, ERROR_MALFORMED_MESSAGE = -2, ADDRESS_FILTERED = -1, SERIAL_PROTOCOL_SUCCESS = 0};
+enum {ERROR_SYNC_MISMATCH = -6, ERROR_MEMORY_OVERRUN = -5, ERROR_INVALID_ARGUMENT = -4, ERROR_CHECKSUM_MISMATCH = -3, ERROR_MALFORMED_MESSAGE = -2, ADDRESS_FILTERED = -1, DARTT_PROTOCOL_SUCCESS = 0};
 
 /*
  * Flags to capture byte field definitions for different physical and link layer protocols,
@@ -135,7 +136,7 @@ typedef struct misc_reply_t
 // 	buffer_t * mem_base;
 // } protocol_context_t;
 
-size_t index_of_field(void * p_field, void * mem, size_t mem_size);
+int index_of_field(void * p_field, void * mem, size_t mem_size);
 int copy_buf_full(buffer_t * in, buffer_t * out);
 unsigned char dartt_get_complementary_address(unsigned char address);
 int dartt_create_write_frame(misc_write_message_t * msg, serial_message_type_t type, buffer_t * output);
