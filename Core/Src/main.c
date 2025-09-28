@@ -143,7 +143,7 @@ int main(void)
 				if(m_huart2.tx_buf_alias.len != 0)
 				{
 					cobs_encode_single_buffer(&m_huart2.tx_mem);
-					m_uart_dma_transmit(&m_huart2.tx_buf_alias);
+					m_uart_dma_transmit(&m_huart2);
 				}
 			}
 

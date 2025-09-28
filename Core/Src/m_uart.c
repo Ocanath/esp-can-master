@@ -30,6 +30,7 @@ uart_it_t m_huart2 =
 {
 		.Instance = USART2,
 		.rxdma = DMA1_Channel1,
+		.txdma = DMA1_Channel2,
 		.rx_mem =
 		{
 				.buf = gl_rx_mem,
@@ -80,8 +81,11 @@ void m_uart_start_interrupts(uart_it_t * h)
 //	h->Instance->CR1 &= ~(1 << 7);       //disable TX interrupt
 //	h->Instance->CR1 |= (1 << 4);        //enable IDLE interrupt
 
+	//setup interrupts
 	h->Instance->CR1 |= USART_CR1_RE | USART_CR1_TE | USART_CR1_RXNEIE;
 	h->Instance->CR3 |= USART_CR3_DMAR;
+
+	//setup rxdma
 	h->rxdma->CCR &= ~DMA_CCR_EN;	//disable dma (will often already be disabled. Necessary for writing to CNTR, etc.
 	h->rxdma->CCR |= DMA_CCR_CIRC;
 	h->rxdma->CNDTR = h->rx_mem.size;
@@ -89,6 +93,14 @@ void m_uart_start_interrupts(uart_it_t * h)
 	h->rxdma->CMAR = (uint32_t)(&h->rx_mem.buf[0]);
 	h->rxdma->CCR |= DMA_CCR_TCIE;
 	h->rxdma->CCR |= DMA_CCR_EN;
+
+	//setup txdma
+	h->txdma->CCR &= ~DMA_CCR_EN;	//disable the dma for writing configuration info
+	h->txdma->CNDTR = 0;
+	h->txdma->CPAR = (uint32_t)(&h->Instance->TDR);
+	h->txdma->CMAR = (uint32_t)(&h->tx_mem.buf[0]);
+	h->txdma->CCR |= DMA_CCR_TCIE;	//enable transfer complete interrupt (and just tc interrupt - no others)
+	h->txdma->CCR |= DMA_CCR_EN;	//re-enable the dma
 
 }
 
@@ -130,10 +142,28 @@ void m_uart_it_handler(uart_it_t * h)
 	h->Instance->ICR |=  ICR_CLEAR_ALL;	//clear all remaining interrupt flags to avoid a storm
 }
 
-void m_uart_dma_transmit(buffer_t * tx_buf)
+
+/**
+ * DMA Transmit function.
+ * Load pointers to memory, length, and enable it
+ */
+int m_uart_dma_transmit(uart_it_t * h)
 {
-	return;//todo implement this function
+	if(h == NULL)
+	{
+		return ERROR_UART_BAD_INPUT;
+	}
+	if(h->tx_mem.buf == NULL)
+	{
+		return ERROR_UART_BAD_INPUT;
+	}
+	h->txdma->CCR &= ~DMA_CCR_EN;
+	h->txdma->CMAR = (uint32_t)(&h->tx_mem.buf[0]);	//ensure pointer is updated. tx_mem.buf might have changed.
+	h->txdma->CNDTR = h->tx_mem.length;	//ensure length is loaded - might have changed.
+	h->txdma->CCR |= DMA_CCR_EN;
+	return SUCCESS_UART;
 }
+
 
 /*m_uart receive dma handler*/
 void m_uart_rxdma_handler(DMA_HandleTypeDef *hdma)

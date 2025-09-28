@@ -42,6 +42,8 @@ typedef struct uart_it_t
 
 extern uart_it_t m_huart2;
 
+enum {ERROR_UART_BAD_INPUT = -1, SUCCESS_UART = 0};
+
 //void m_uart_it_handler(uart_it_t * h);
 void m_uart_it_handler(uart_it_t * h);
 void m_uart_tx_start(uart_it_t * h, uint8_t * buf, int size);
@@ -51,6 +53,6 @@ void m_uart_rxdma_handler(DMA_HandleTypeDef *hdma);
 void m_uart_txdma_handler(DMA_HandleTypeDef *hdma);
 void m_uart_enable_rx_interrupt(uart_it_t * h);
 void m_uart_disable_rx_interrupt(uart_it_t * h);
-void m_uart_dma_transmit(buffer_t * tx_buf);
+int m_uart_dma_transmit(uart_it_t * h);
 
 #endif /* M_UART_H_ */
