@@ -59,7 +59,7 @@ int main(void)
 	MX_FDCAN1_Init();
 	FDCAN_Config();
 	load_flash_params(&fs_alias);
-
+	unsigned char misc_address = dartt_get_complementary_address(dp_ctl.fds.dartt_address);
 
 
 	read_motor_memory();
@@ -138,18 +138,20 @@ int main(void)
 
 
 			//we could also do dartt in the handler. That would simplify this greatly, at the expense of compute in an interrupt handler
-			if(m_huart2.rx_decoded.buf[0] == dp_ctl.fds.dartt_address)
+			if(m_huart2.rx_decoded.buf[0] == misc_address)
 			{
-				dartt_frame_to_payload(&m_huart2.rx_decode_alias, TYPE_SERIAL_MESSAGE, PAYLOAD_ALIAS, &m_huart2.rx_pld_msg);
-				dartt_parse_general_message(&m_huart2.rx_pld_msg, TYPE_SERIAL_MESSAGE, &dp_ctl_alias, &m_huart2.tx_buf_alias);
-				if(m_huart2.tx_buf_alias.len != 0)
+				int rc = dartt_frame_to_payload(&m_huart2.rx_decode_alias, TYPE_SERIAL_MESSAGE, PAYLOAD_ALIAS, &m_huart2.rx_pld_msg);
+				if(rc == DARTT_PROTOCOL_SUCCESS)
+				{
+					rc = dartt_parse_general_message(&m_huart2.rx_pld_msg, TYPE_SERIAL_MESSAGE, &dp_ctl_alias, &m_huart2.tx_buf_alias);
+				}
+				if(m_huart2.tx_buf_alias.len != 0 && rc == DARTT_PROTOCOL_SUCCESS)
 				{
 					m_huart2.tx_mem.length = m_huart2.tx_buf_alias.len;
 					cobs_encode_single_buffer(&m_huart2.tx_mem);
 					m_uart_dma_transmit(&m_huart2);
 				}
 			}
-
 			m_huart2.rx_decoded.length = 0;
 		}
 
