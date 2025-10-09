@@ -84,7 +84,7 @@ int main(void)
 	{
 		uint32_t tick = HAL_GetTick();
 
-		if(tick - upsample_ts >= 1)
+		if(tick - upsample_ts >= 5)
 		{
 			upsample_ts = tick;
 			float m0filt = sos_f(&upsampling_filter[0], (float)(-dp_ctl.m1_qd));
